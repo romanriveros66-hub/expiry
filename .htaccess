@@ -1,0 +1,63 @@
+# ==============================================================================
+# SEGURIDAD Y PROTECCIÓN VULNSCOPE / OWASP TOP 10 - ALERTA DE VENCIMIENTOS
+# ==============================================================================
+
+# 1. Deshabilitar exploración de directorios
+Options -Indexes -MultiViews
+
+# 2. Ocultar información del servidor
+<IfModule mod_security.c>
+    SecServerSignature Off
+</IfModule>
+ServerSignature Off
+
+# 3. Bloqueo estricto de archivos sensibles y código fuente (Archivos Expuestos)
+<FilesMatch "(^\.|\.(sql|log|env|git|md|json|lock|bak|backup|old|swp|ini|sh|bat)$|^test_.*\.php$)">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Proteger archivos específicos directamente
+<Files "database.sql">
+    Order allow,deny
+    Deny from all
+</Files>
+<Files "test_db.php">
+    Order allow,deny
+    Deny from all
+</Files>
+<Files ".htaccess">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# 4. Cabeceras de Seguridad HTTP (Cabeceras & TLS/HTTPS)
+<IfModule mod_headers.c>
+    # Prevenir MIME-Type sniffing
+    Header set X-Content-Type-Options "nosniff"
+
+    # Prevenir Clickjacking
+    Header set X-Frame-Options "SAMEORIGIN"
+
+    # Filtro XSS del navegador
+    Header set X-XSS-Protection "1; mode=block"
+
+    # Política de Referrer
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Content Security Policy (CSP) restrictiva y segura
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';"
+
+    # Permissions Policy (restringir APIs innecesarias)
+    Header set Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=()"
+
+    # HSTS si se utiliza sobre HTTPS
+    Header set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
+</IfModule>
+
+# 5. Configuración de Cookies seguras en PHP
+<IfModule mod_php7.c>
+    php_value session.cookie_httponly 1
+    php_value session.cookie_samesite Strict
+    php_value session.use_only_cookies 1
+</IfModule>

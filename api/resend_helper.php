@@ -1,0 +1,586 @@
+<?php
+/**
+ * Servicio de Notificaciones por Correo Electrónico con Resend API
+ * Sistema de Vencimientos - Expiry
+ */
+
+require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/smtp_helper.php';
+
+class ResendEmailService {
+    const RESEND_API_URL = 'https://api.resend.com/emails';
+    const DEFAULT_API_KEY = '';
+    const DEFAULT_FROM = 'Expiry Alertas <onboarding@resend.dev>';
+
+    /**
+     * Envía un correo electrónico utilizando el motor activo (SMTP / Gmail o Resend API)
+     * Soporta entrega simultánea a múltiples destinatarios (To + CC)
+     */
+    public static function sendEmail($to, string $subject, string $htmlBody, $cc = null, $apiKey = null, $from = null): array {
+        $pdo = Database::getConnection();
+
+        // Obtener configuración activa completa
+        $stmtCfg = $pdo->query("
+            SELECT resend_api_key, email_remitente, notificar_email, nombre_negocio, moneda_simbolo,
+                   email_metodo, smtp_host, smtp_port, smtp_seguridad, smtp_user, smtp_pass 
+            FROM configuracion 
+            LIMIT 1
+        ");
+        $cfg = $stmtCfg->fetch();
+
+        $metodo = strtoupper($cfg['email_metodo'] ?? 'RESEND');
+        $nombreNegocio = !empty($cfg['nombre_negocio']) ? $cfg['nombre_negocio'] : 'Minimarket San José';
+
+        $toArray = is_array($to) ? $to : array_map('trim', explode(',', $to));
+        $toArray = array_values(array_filter($toArray, function($e) {
+            return filter_var($e, FILTER_VALIDATE_EMAIL);
+        }));
+
+        if (empty($toArray)) {
+            return [
+                'success'   => false,
+                'http_code' => 400,
+                'error'     => 'No se proporcionó ningún destinatario principal (to) con correo electrónico válido.'
+            ];
+        }
+
+        // =========================================================================
+        // MOTOR 1: GMAIL / SERVIDOR SMTP (Envía a TODOS sin restricciones de dominio)
+        // =========================================================================
+        if ($metodo === 'SMTP') {
+            if (empty($cfg['smtp_pass'])) {
+                return [
+                    'success'   => false,
+                    'http_code' => 400,
+                    'error'     => 'El motor está configurado en Gmail / SMTP, pero falta la Contraseña de Aplicación de Google. Ingresala en la configuración de reportes para enviar a todos los destinatarios.',
+                    'metodo'    => 'SMTP'
+                ];
+            }
+
+            $host     = !empty($cfg['smtp_host']) ? $cfg['smtp_host'] : 'smtp.gmail.com';
+            $port     = (int)(!empty($cfg['smtp_port']) ? $cfg['smtp_port'] : 465);
+            $sec      = !empty($cfg['smtp_seguridad']) ? $cfg['smtp_seguridad'] : 'ssl';
+            $user     = !empty($cfg['smtp_user']) ? $cfg['smtp_user'] : $toArray[0];
+            $pass     = $cfg['smtp_pass'];
+            $fromName = "Expiry Alertas - {$nombreNegocio}";
+            $fromMail = $user;
+
+            $smtpRes = SmtpMailer::send($host, $port, $sec, $user, $pass, $fromMail, $fromName, $toArray, $subject, $htmlBody, $cc);
+            if ($smtpRes['success']) {
+                return [
+                    'success'        => true,
+                    'http_code'      => 200,
+                    'metodo'         => 'SMTP',
+                    'recipients'     => $smtpRes['recipients'],
+                    'total_enviados' => $smtpRes['total_enviados'],
+                    'data'           => ['id' => 'smtp-' . time()]
+                ];
+            } else {
+                return [
+                    'success'   => false,
+                    'http_code' => 500,
+                    'metodo'    => 'SMTP',
+                    'error'     => $smtpRes['error']
+                ];
+            }
+        }
+
+        // =========================================================================
+        // MOTOR 2: RESEND API (NUBE)
+        // =========================================================================
+        $key = !empty($apiKey) ? $apiKey : (!empty($cfg['resend_api_key']) ? $cfg['resend_api_key'] : self::DEFAULT_API_KEY);
+        $sender = !empty($from) ? $from : (!empty($cfg['email_remitente']) ? $cfg['email_remitente'] : self::DEFAULT_FROM);
+
+        $payload = [
+            'from'    => $sender,
+            'to'      => $toArray,
+            'subject' => $subject,
+            'html'    => $htmlBody
+        ];
+
+        // Procesar destinatarios en copia (CC) si fueron provistos
+        if (!empty($cc)) {
+            $ccArray = is_array($cc) ? $cc : array_map('trim', explode(',', $cc));
+            $ccArray = array_values(array_filter($ccArray, function($e) {
+                return filter_var($e, FILTER_VALIDATE_EMAIL);
+            }));
+            if (!empty($ccArray)) {
+                $payload['cc'] = $ccArray;
+            }
+        }
+
+        $ch = curl_init(self::RESEND_API_URL);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . $key,
+                'Content-Type: application/json'
+            ],
+            CURLOPT_POSTFIELDS     => json_encode($payload),
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_SSL_VERIFYPEER => false // Asegura compatibilidad en entornos locales Windows
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            return [
+                'success'    => false,
+                'http_code'  => $httpCode,
+                'error'      => 'Error de conexión cURL con Resend: ' . $curlError
+            ];
+        }
+
+        $responseData = json_decode($response, true);
+
+        if ($httpCode >= 200 && $httpCode < 300) {
+            $allDest = array_merge($payload['to'], $payload['cc'] ?? []);
+            return [
+                'success'        => true,
+                'http_code'      => $httpCode,
+                'metodo'         => 'RESEND',
+                'data'           => $responseData,
+                'recipients'     => $allDest,
+                'total_enviados' => count($allDest)
+            ];
+        } else {
+            $errorMsg = $responseData['message'] ?? ($responseData['name'] ?? 'Error desconocido al enviar con Resend');
+
+            // Caso: Modo prueba de Resend (dominio no verificado).
+            // Resend bloquea envíos a cualquiera que no sea el correo de la cuenta registrada.
+            if ($httpCode === 403
+                && stripos($errorMsg, 'only send testing emails') !== false
+                && preg_match('/\(([^()\s]+@[^()\s]+)\)/', $errorMsg, $m)
+                && filter_var($m[1], FILTER_VALIDATE_EMAIL)
+            ) {
+                $permitido = strtolower($m[1]);
+                $todos = array_merge($payload['to'], $payload['cc'] ?? []);
+                $omitidos = array_values(array_filter($todos, function ($e) use ($permitido) {
+                    return strtolower($e) !== $permitido;
+                }));
+
+                // Si SMTP está configurado con contraseña, realizar rescate automático enviando a TODOS por SMTP
+                if (!empty($cfg['smtp_pass'])) {
+                    $host     = !empty($cfg['smtp_host']) ? $cfg['smtp_host'] : 'smtp.gmail.com';
+                    $port     = (int)(!empty($cfg['smtp_port']) ? $cfg['smtp_port'] : 465);
+                    $sec      = !empty($cfg['smtp_seguridad']) ? $cfg['smtp_seguridad'] : 'ssl';
+                    $user     = !empty($cfg['smtp_user']) ? $cfg['smtp_user'] : $permitido;
+                    $pass     = $cfg['smtp_pass'];
+                    $fromName = "Expiry Alertas - {$nombreNegocio}";
+                    $fromMail = $user;
+
+                    $smtpRescue = SmtpMailer::send($host, $port, $sec, $user, $pass, $fromMail, $fromName, $toArray, $subject, $htmlBody, $cc);
+                    if ($smtpRescue['success']) {
+                        return [
+                            'success'        => true,
+                            'http_code'      => 200,
+                            'metodo'         => 'SMTP_AUTORESCUE',
+                            'recipients'     => $smtpRescue['recipients'],
+                            'total_enviados' => $smtpRescue['total_enviados'],
+                            'data'           => ['id' => 'smtp-rescue-' . time()],
+                            'nota'           => 'Resend bloqueó remitentes por sandbox; se entregó automáticamente a todos mediante Gmail SMTP.'
+                        ];
+                    }
+                }
+
+                // Si no hay SMTP configurado, reintentar al menos al dueño en Resend pero señalizar claramente la restricción de sandbox
+                $retryPayload = $payload;
+                $retryPayload['to'] = [$permitido];
+                unset($retryPayload['cc']);
+
+                $ch = curl_init(self::RESEND_API_URL);
+                curl_setopt_array($ch, [
+                    CURLOPT_POST           => true,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_HTTPHEADER     => [
+                        'Authorization: Bearer ' . $key,
+                        'Content-Type: application/json'
+                    ],
+                    CURLOPT_POSTFIELDS     => json_encode($retryPayload),
+                    CURLOPT_TIMEOUT        => 15,
+                    CURLOPT_SSL_VERIFYPEER => false
+                ]);
+                $retryResp = curl_exec($ch);
+                $retryCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($retryCode >= 200 && $retryCode < 300) {
+                    return [
+                        'success'          => true,
+                        'http_code'        => $retryCode,
+                        'metodo'           => 'RESEND_SANDBOX',
+                        'data'             => json_decode($retryResp, true),
+                        'sandbox_fallback' => true,
+                        'enviado_a'        => $permitido,
+                        'omitidos'         => $omitidos,
+                        'recipients'       => [$permitido],
+                        'total_enviados'   => 1
+                    ];
+                }
+            }
+
+            return [
+                'success'    => false,
+                'http_code'  => $httpCode,
+                'metodo'     => 'RESEND',
+                'error'      => $errorMsg,
+                'details'    => $responseData
+            ];
+        }
+    }
+
+    /**
+     * Construye un correo HTML profesional y modular para el reporte de vencimientos
+     * Respeta filtros de contenido (vencidos, rojos, amarillos, balance financiero, sugerencias)
+     */
+    public static function buildExpirationAlertHtml(
+        string $nombreNegocio,
+        string $nombreUsuario,
+        array $lotesRojos,
+        array $lotesAmarillos,
+        array $resumen,
+        string $moneda = 'Gs.',
+        array $filtrosConfig = []
+    ): string {
+        $fechaHoy = date('d/m/Y H:i');
+
+        // Opciones de configuración con valores por defecto
+        $incVencidos   = !isset($filtrosConfig['incluir_vencidos'])   || (int)$filtrosConfig['incluir_vencidos'] === 1;
+        $incRojos      = !isset($filtrosConfig['incluir_rojos'])      || (int)$filtrosConfig['incluir_rojos'] === 1;
+        $incAmarillos  = !isset($filtrosConfig['incluir_amarillos'])  || (int)$filtrosConfig['incluir_amarillos'] === 1;
+        $incFinanciero = !isset($filtrosConfig['incluir_financiero']) || (int)$filtrosConfig['incluir_financiero'] === 1;
+        $incSugerencias= !isset($filtrosConfig['incluir_sugerencias'])|| (int)$filtrosConfig['incluir_sugerencias'] === 1;
+
+        $frecuencia    = $filtrosConfig['frecuencia_reporte'] ?? 'DIARIO';
+        $horaReporte   = $filtrosConfig['hora_reporte'] ?? '08:00';
+        $emailDestino  = $filtrosConfig['email_destino'] ?? '';
+        $emailsCopia   = $filtrosConfig['emails_copia'] ?? '';
+
+        $frecuenciasNombres = [
+            'DIARIO'        => 'Diario matutino (' . $horaReporte . ' hs)',
+            'DIAS_ALTERNOS' => 'Días por medio (cada 48hs)',
+            'SEMANAL'       => 'Semanal (Lunes a las ' . $horaReporte . ' hs)',
+            'TIEMPO_REAL'   => 'Tiempo real ante alertas críticas'
+        ];
+        $textoFrecuencia = $frecuenciasNombres[$frecuencia] ?? 'Programación automática';
+
+        // Separar lotes ya vencidos de lotes en semáforo rojo (0 a 7 días)
+        $lotesVencidos = [];
+        $lotesRojosVigentes = [];
+        foreach ($lotesRojos as $l) {
+            if ((int)$l['dias_restantes'] < 0) {
+                $lotesVencidos[] = $l;
+            } else {
+                $lotesRojosVigentes[] = $l;
+            }
+        }
+
+        $totalVencidos = count($lotesVencidos);
+        $totalRojos = count($lotesRojosVigentes);
+        $totalAmarillos = count($lotesAmarillos);
+
+        // Capital en riesgo
+        $dineroRiesgoNum = $resumen['capital_en_riesgo_total'] ?? 0;
+        $dineroRiesgo = number_format($dineroRiesgoNum, 0, ',', '.') . ' ' . $moneda;
+
+        // 1. Bloque de Balance Financiero
+        $bloqueFinanciero = '';
+        if ($incFinanciero) {
+            $bloqueFinanciero = "
+                <table width='100%' cellpadding='0' cellspacing='0' style='background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%); border-radius: 12px; border: 1px solid #334155; margin-bottom: 24px;'>
+                    <tr>
+                        <td style='padding: 20px 24px;'>
+                            <table width='100%'>
+                                <tr>
+                                    <td>
+                                        <div style='font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; font-weight: 700;'>
+                                            💰 Capital Total en Riesgo de Merma
+                                        </div>
+                                        <div style='font-size: 28px; font-weight: 800; color: #f87171; margin-top: 4px; letter-spacing: -0.5px;'>
+                                            {$dineroRiesgo}
+                                        </div>
+                                        <div style='font-size: 13px; color: #cbd5e1; margin-top: 6px; line-height: 1.4;'>
+                                            Inversión en productos con fecha límite próxima. Evitá tirar mercadería aplicando promociones antes de la fecha de caducidad.
+                                        </div>
+                                    </td>
+                                    <td align='right' style='vertical-align: top;'>
+                                        <div style='background: #374151; padding: 8px 14px; border-radius: 8px; font-size: 12px; color: #e2e8f0; font-weight: 600; display: inline-block;'>
+                                            ⏱️ {$textoFrecuencia}
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            ";
+        }
+
+        // 2. Bloque de Mercadería Ya Vencida
+        $bloqueVencidos = '';
+        if ($incVencidos && $totalVencidos > 0) {
+            $filasVencidas = '';
+            foreach ($lotesVencidos as $l) {
+                $dias = abs((int)$l['dias_restantes']);
+                $riesgo = number_format($l['dinero_en_riesgo'], 0, ',', '.') . ' ' . $moneda;
+                $filasVencidas .= "
+                    <tr style='border-bottom: 1px solid #334155;'>
+                        <td style='padding: 10px 12px; font-weight: bold; color: #ffffff;'>{$l['producto_nombre']}</td>
+                        <td style='padding: 10px 12px; color: #cbd5e1; font-family: monospace;'>{$l['codigo_barra']}</td>
+                        <td style='padding: 10px 12px; color: #cbd5e1;'>
+                            {$l['fecha_vencimiento']}<br>
+                            <span style='color: #ef4444; font-size: 11px; font-weight: 800; background: rgba(239,68,68,0.15); padding: 2px 6px; border-radius: 4px;'>Venció hace {$dias}d</span>
+                        </td>
+                        <td style='padding: 10px 12px; color: #cbd5e1;'>{$l['cantidad_actual']} unid. ({$l['ubicacion']})</td>
+                        <td style='padding: 10px 12px; color: #f87171; font-weight: bold; text-align: right;'>{$riesgo}</td>
+                    </tr>
+                ";
+            }
+
+            $bloqueVencidos = "
+                <div style='margin-bottom: 24px;'>
+                    <div style='background: #450a0a; border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 8px 8px 0 0;'>
+                        <h3 style='margin: 0; font-size: 15px; color: #fca5a5;'>
+                            🏴 Mercadería Ya Vencida — Retiro Obligatorio ({$totalVencidos} lotes)
+                        </h3>
+                        <p style='margin: 4px 0 0; font-size: 12px; color: #fecaca;'>
+                            Acción obligatoria: Retirar inmediatamente de góndolas para evitar sanciones y proteger la confianza del cliente.
+                        </p>
+                    </div>
+                    <table width='100%' cellpadding='0' cellspacing='0' style='font-size: 13px; border-collapse: collapse; background: #0f172a; border-radius: 0 0 8px 8px;'>
+                        <thead>
+                            <tr style='background: #1e293b; color: #94a3b8; text-align: left; font-size: 11px; text-transform: uppercase;'>
+                                <th style='padding: 10px 12px;'>Producto</th>
+                                <th style='padding: 10px 12px;'>Código</th>
+                                <th style='padding: 10px 12px;'>Vencimiento</th>
+                                <th style='padding: 10px 12px;'>Stock</th>
+                                <th style='padding: 10px 12px; text-align: right;'>Pérdida Neta</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {$filasVencidas}
+                        </tbody>
+                    </table>
+                </div>
+            ";
+        }
+
+        // 3. Bloque de Semáforo Rojo (Vencimiento en ≤ 7 días)
+        $bloqueRojos = '';
+        if ($incRojos && $totalRojos > 0) {
+            $filasRojas = '';
+            foreach ($lotesRojosVigentes as $l) {
+                $dias = (int)$l['dias_restantes'];
+                $textoDias = $dias === 0 ? "<span style='color: #ef4444; font-weight: 800; background: rgba(239,68,68,0.2); padding: 2px 6px; border-radius: 4px;'>¡VENCE HOY!</span>" : "<span style='color: #f87171; font-weight: 700;'>Vence en {$dias}d</span>";
+                $riesgo = number_format($l['dinero_en_riesgo'], 0, ',', '.') . ' ' . $moneda;
+                $filasRojas .= "
+                    <tr style='border-bottom: 1px solid #334155;'>
+                        <td style='padding: 10px 12px; font-weight: bold; color: #ffffff;'>{$l['producto_nombre']}</td>
+                        <td style='padding: 10px 12px; color: #cbd5e1; font-family: monospace;'>{$l['codigo_barra']}</td>
+                        <td style='padding: 10px 12px; color: #cbd5e1;'>
+                            {$l['fecha_vencimiento']}<br>
+                            <small>{$textoDias}</small>
+                        </td>
+                        <td style='padding: 10px 12px; color: #cbd5e1;'>{$l['cantidad_actual']} unid. ({$l['ubicacion']})</td>
+                        <td style='padding: 10px 12px; color: #fca5a5; font-weight: bold; text-align: right;'>{$riesgo}</td>
+                    </tr>
+                ";
+            }
+
+            $bloqueRojos = "
+                <div style='margin-bottom: 24px;'>
+                    <div style='background: #3b0764; border-left: 4px solid #dc2626; padding: 12px 16px; border-radius: 8px 8px 0 0;'>
+                        <h3 style='margin: 0; font-size: 15px; color: #fca5a5;'>
+                            🔴 Semáforo Rojo — Vencimiento Crítico (≤ 7 días: {$totalRojos} lotes)
+                        </h3>
+                        <p style='margin: 4px 0 0; font-size: 12px; color: #e9d5ff;'>
+                            Acción recomendada: Activar ofertas relámpago, carteles en caja o promociones 2x1 para recuperar el costo.
+                        </p>
+                    </div>
+                    <table width='100%' cellpadding='0' cellspacing='0' style='font-size: 13px; border-collapse: collapse; background: #0f172a; border-radius: 0 0 8px 8px;'>
+                        <thead>
+                            <tr style='background: #1e293b; color: #94a3b8; text-align: left; font-size: 11px; text-transform: uppercase;'>
+                                <th style='padding: 10px 12px;'>Producto</th>
+                                <th style='padding: 10px 12px;'>Código</th>
+                                <th style='padding: 10px 12px;'>Vencimiento</th>
+                                <th style='padding: 10px 12px;'>Stock</th>
+                                <th style='padding: 10px 12px; text-align: right;'>Costo en Riesgo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {$filasRojas}
+                        </tbody>
+                    </table>
+                </div>
+            ";
+        }
+
+        // 4. Bloque de Semáforo Amarillo (8 a 30 días)
+        $bloqueAmarillos = '';
+        if ($incAmarillos && $totalAmarillos > 0) {
+            $filasAmarillas = '';
+            foreach ($lotesAmarillos as $l) {
+                $dias = (int)$l['dias_restantes'];
+                $riesgo = number_format($l['dinero_en_riesgo'], 0, ',', '.') . ' ' . $moneda;
+                $filasAmarillas .= "
+                    <tr style='border-bottom: 1px solid #334155;'>
+                        <td style='padding: 10px 12px; font-weight: bold; color: #ffffff;'>{$l['producto_nombre']}</td>
+                        <td style='padding: 10px 12px; color: #cbd5e1; font-family: monospace;'>{$l['codigo_barra']}</td>
+                        <td style='padding: 10px 12px; color: #cbd5e1;'>
+                            {$l['fecha_vencimiento']}<br>
+                            <small style='color: #fbbf24; font-weight: 600;'>En {$dias} días</small>
+                        </td>
+                        <td style='padding: 10px 12px; color: #cbd5e1;'>{$l['cantidad_actual']} unid. ({$l['ubicacion']})</td>
+                        <td style='padding: 10px 12px; color: #fcd34d; font-weight: 600; text-align: right;'>{$riesgo}</td>
+                    </tr>
+                ";
+            }
+
+            $bloqueAmarillos = "
+                <div style='margin-bottom: 24px;'>
+                    <div style='background: #451a03; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 8px 8px 0 0;'>
+                        <h3 style='margin: 0; font-size: 15px; color: #fde68a;'>
+                            🟡 Semáforo Amarillo — Alerta Preventiva (8 a 30 días: {$totalAmarillos} lotes)
+                        </h3>
+                        <p style='margin: 4px 0 0; font-size: 12px; color: #fef3c7;'>
+                            Rotación preventiva: Colocar al frente de la góndola o heladera para garantizar venta por rotación FIFO.
+                        </p>
+                    </div>
+                    <table width='100%' cellpadding='0' cellspacing='0' style='font-size: 13px; border-collapse: collapse; background: #0f172a; border-radius: 0 0 8px 8px;'>
+                        <thead>
+                            <tr style='background: #1e293b; color: #94a3b8; text-align: left; font-size: 11px; text-transform: uppercase;'>
+                                <th style='padding: 10px 12px;'>Producto</th>
+                                <th style='padding: 10px 12px;'>Código</th>
+                                <th style='padding: 10px 12px;'>Vencimiento</th>
+                                <th style='padding: 10px 12px;'>Stock</th>
+                                <th style='padding: 10px 12px; text-align: right;'>Capital</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {$filasAmarillas}
+                        </tbody>
+                    </table>
+                </div>
+            ";
+        }
+
+        // 5. Bloque de Sugerencias de Acción Comercial
+        $bloqueSugerencias = '';
+        if ($incSugerencias) {
+            $bloqueSugerencias = "
+                <div style='background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 18px 20px; margin-bottom: 24px;'>
+                    <div style='font-size: 13px; font-weight: 800; color: #38bdf8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;'>
+                        💡 Plan de Acción Comercial Recomendado
+                    </div>
+                    <ul style='margin: 0; padding-left: 20px; font-size: 13px; color: #cbd5e1; line-height: 1.6;'>
+                        <li><strong>Rotación Góndola:</strong> Adelantar mercadería amarilla y ubicar detrás la que vence más tarde.</li>
+                        <li><strong>Cartel de Oferta Relámpago:</strong> Agrupar productos en semáforo rojo en una canasta de liquidación de salida con descuento.</li>
+                        <li><strong>Ajuste de Compras:</strong> Si un producto vence repetidamente sin venderse, reducir la cantidad solicitada al distribuidor.</li>
+                    </ul>
+                </div>
+            ";
+        }
+
+        // Destinatarios info en cabecera
+        $copiaTexto = !empty($emailsCopia) ? "<br><span style='color: #94a3b8;'>Con copia a: " . htmlspecialchars($emailsCopia) . "</span>" : "";
+
+        return "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='utf-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <title>Reporte de Vencimientos - {$nombreNegocio}</title>
+        </head>
+        <body style='margin: 0; padding: 0; background-color: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;'>
+            <table width='100%' cellpadding='0' cellspacing='0' style='background-color: #0b0f19; padding: 25px 10px;'>
+                <tr>
+                    <td align='center'>
+                        <table width='680' cellpadding='0' cellspacing='0' style='background-color: #111827; border: 1px solid #1f2937; border-radius: 16px; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.6); max-width: 100%;'>
+                            <!-- Cabecera Ejecutiva -->
+                            <tr>
+                                <td style='background: linear-gradient(135deg, #1e3a8a 0%, #1e1b4b 50%, #311042 100%); padding: 28px 32px; border-bottom: 1px solid #374151;'>
+                                    <table width='100%'>
+                                        <tr>
+                                            <td>
+                                                <div style='display: inline-block; background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; margin-bottom: 8px;'>
+                                                    🚦 Expiry • Reporte Inteligente
+                                                </div>
+                                                <h1 style='margin: 0; font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px;'>
+                                                    Semáforo de Vencimientos & Mermas
+                                                </h1>
+                                                <p style='margin: 6px 0 0; font-size: 13px; color: #cbd5e1;'>
+                                                    {$nombreNegocio} • Para: <strong>{$nombreUsuario}</strong> {$copiaTexto}
+                                                </p>
+                                            </td>
+                                            <td align='right' style='vertical-align: top; font-size: 12px; color: #94a3b8;'>
+                                                <span style='background: rgba(15, 23, 42, 0.6); padding: 6px 12px; border-radius: 8px; border: 1px solid #334155; display: inline-block;'>
+                                                    📅 {$fechaHoy}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+
+                            <!-- Cuerpo del Informe -->
+                            <tr>
+                                <td style='padding: 26px 30px;'>
+                                    {$bloqueFinanciero}
+                                    {$bloqueVencidos}
+                                    {$bloqueRojos}
+                                    {$bloqueAmarillos}
+                                    {$bloqueSugerencias}
+                                </td>
+                            </tr>
+
+                            <!-- Pie de Página Institucional -->
+                            <tr>
+                                <td style='background-color: #0b0f19; padding: 22px 30px; text-align: center; border-top: 1px solid #1f2937; font-size: 12px; color: #64748b; line-height: 1.5;'>
+                                    Informe emitido por el sistema <strong>Expiry</strong> a través de <strong>Resend API</strong>.<br>
+                                    Frecuencia de entrega configurada: <strong>{$textoFrecuencia}</strong>.<br>
+                                    <small style='color: #475569;'>Para modificar destinatarios, horario o filtros, ingresá a la Configuración de Reportes desde tu panel administrativo.</small>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        ";
+    }
+
+    /**
+     * Envía un correo de prueba simple para verificar la conexión con Resend
+     */
+    public static function sendTestEmail(string $to, string $nombreUsuario, string $nombreNegocio, ?string $cc = null): array {
+        $subject = "✅ Prueba Exitosa de Reporte — Expiry ({$nombreNegocio})";
+        $html = "
+            <div style='background: #0f172a; color: #f8fafc; padding: 30px; font-family: sans-serif; border-radius: 12px; max-width: 520px; margin: 0 auto; border: 1px solid #334155;'>
+                <div style='background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #10b981; display: inline-block; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 11px; text-transform: uppercase;'>
+                    Conexión Resend Verificada
+                </div>
+                <h2 style='color: #ffffff; margin: 16px 0 8px;'>🚦 Conexión de Reportes Operativa</h2>
+                <p style='color: #cbd5e1; font-size: 14px; margin-top: 0;'>Hola <strong>{$nombreUsuario}</strong>,</p>
+                <p style='color: #94a3b8; font-size: 13px; line-height: 1.5;'>
+                    El motor de avisos automáticos de <strong>{$nombreNegocio}</strong> está configurado y listo para entregar los reportes según la frecuencia seleccionada.
+                </p>
+                <div style='background: #1e293b; padding: 14px 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981; font-size: 13px;'>
+                    <div style='color: #ffffff; font-weight: bold;'>Destinatario Principal:</div>
+                    <div style='color: #94a3b8;'>{$to}</div>
+                    " . (!empty($cc) ? "<div style='color: #ffffff; font-weight: bold; margin-top: 8px;'>Destinatarios en Copia (CC):</div><div style='color: #94a3b8;'>{$cc}</div>" : "") . "
+                </div>
+                <p style='font-size: 12px; color: #64748b; margin-bottom: 0;'>
+                    Si recibiste este correo, tu configuración es totalmente funcional.
+                </p>
+            </div>
+        ";
+
+        return self::sendEmail($to, $subject, $html, $cc);
+    }
+}
