@@ -35,13 +35,14 @@ switch ($action) {
         $count = $stmtCount->fetch();
 
         $stmtContactos = $pdo->query("SELECT id, nombre, email, cargo, tipo_destinatario, activo FROM contactos_reporte ORDER BY tipo_destinatario DESC, id ASC");
-        $contactos = $stmtContactos->fetchAll();
+        $rawKey = (string)($cfg['resend_api_key'] ?? '');
+        $keyMasked = !empty($rawKey) ? (substr($rawKey, 0, min(8, strlen($rawKey))) . '••••••••••••••••••••' . (strlen($rawKey) > 4 ? substr($rawKey, -4) : '')) : '';
 
         jsonResponse([
             'status' => 'success',
             'config' => [
-                'resend_configured'   => !empty($cfg['resend_api_key']),
-                'api_key_masked'      => substr($cfg['resend_api_key'], 0, 8) . '••••••••••••••••••••' . substr($cfg['resend_api_key'], -4),
+                'resend_configured'   => !empty($rawKey),
+                'api_key_masked'      => $keyMasked,
                 'email_remitente'     => $cfg['email_remitente'] ?: 'Expiry Alertas <onboarding@resend.dev>',
                 'email_metodo'        => strtoupper($cfg['email_metodo'] ?? 'RESEND'),
                 'smtp_host'           => $cfg['smtp_host'] ?: 'smtp.gmail.com',

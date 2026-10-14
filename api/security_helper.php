@@ -4,6 +4,12 @@
  * Sistema de Vencimientos - Expiry
  */
 
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED & ~E_NOTICE);
+ini_set('display_errors', '0');
+if (!ob_get_level()) {
+    ob_start();
+}
+
 require_once __DIR__ . '/../db.php';
 
 // 1. Configuración de Cookies Seguras (Cookies & CORS)

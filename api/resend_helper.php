@@ -86,11 +86,91 @@ class ResendEmailService {
         }
 
         // =========================================================================
-        // MOTOR 2: RESEND API (NUBE)
+        // MOTOR 2: BREVO API (NUBE) O RESEND API (NUBE)
         // =========================================================================
         $key = !empty($apiKey) ? $apiKey : (!empty($cfg['resend_api_key']) ? $cfg['resend_api_key'] : self::DEFAULT_API_KEY);
         $sender = !empty($from) ? $from : (!empty($cfg['email_remitente']) ? $cfg['email_remitente'] : self::DEFAULT_FROM);
 
+        // Procesar destinatarios en copia (CC) si fueron provistos
+        $ccArray = [];
+        if (!empty($cc)) {
+            $rawCc = is_array($cc) ? $cc : array_map('trim', explode(',', $cc));
+            $ccArray = array_values(array_filter($rawCc, function($e) {
+                return filter_var($e, FILTER_VALIDATE_EMAIL);
+            }));
+        }
+
+        // Si la clave es de Brevo (inicia con xkeysib-)
+        if (strpos($key, 'xkeysib-') === 0) {
+            $brevoSenderEmail = 'mckakucorp@gmail.com';
+            if (!empty($sender) && filter_var($sender, FILTER_VALIDATE_EMAIL) && strpos($sender, 'resend.dev') === false) {
+                $brevoSenderEmail = $sender;
+            }
+
+            $payloadBrevo = [
+                'sender'      => [
+                    'name'  => "Expiry Alertas - {$nombreNegocio}",
+                    'email' => $brevoSenderEmail
+                ],
+                'to'          => array_map(function($em) { return ['email' => $em]; }, $toArray),
+                'subject'     => $subject,
+                'htmlContent' => $htmlBody
+            ];
+
+            if (!empty($ccArray)) {
+                $payloadBrevo['cc'] = array_map(function($em) { return ['email' => $em]; }, $ccArray);
+            }
+
+            $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER     => [
+                    'api-key: ' . $key,
+                    'Content-Type: application/json',
+                    'Accept: application/json'
+                ],
+                CURLOPT_POSTFIELDS     => json_encode($payloadBrevo),
+                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_SSL_VERIFYPEER => false
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlError) {
+                return [
+                    'success'   => false,
+                    'http_code' => $httpCode,
+                    'error'     => 'Error cURL con Brevo API: ' . $curlError
+                ];
+            }
+
+            $responseData = json_decode($response, true);
+            if ($httpCode >= 200 && $httpCode < 300) {
+                $allDest = array_merge($toArray, $ccArray);
+                return [
+                    'success'        => true,
+                    'http_code'      => $httpCode,
+                    'metodo'         => 'BREVO',
+                    'data'           => $responseData,
+                    'recipients'     => $allDest,
+                    'total_enviados' => count($allDest)
+                ];
+            } else {
+                $err = $responseData['message'] ?? 'Error desconocido al enviar con Brevo API';
+                return [
+                    'success'   => false,
+                    'http_code' => $httpCode,
+                    'error'     => "Brevo API Error ({$httpCode}): {$err}",
+                    'metodo'    => 'BREVO'
+                ];
+            }
+        }
+
+        // De lo contrario, utilizar Resend API
         $payload = [
             'from'    => $sender,
             'to'      => $toArray,
@@ -98,15 +178,8 @@ class ResendEmailService {
             'html'    => $htmlBody
         ];
 
-        // Procesar destinatarios en copia (CC) si fueron provistos
-        if (!empty($cc)) {
-            $ccArray = is_array($cc) ? $cc : array_map('trim', explode(',', $cc));
-            $ccArray = array_values(array_filter($ccArray, function($e) {
-                return filter_var($e, FILTER_VALIDATE_EMAIL);
-            }));
-            if (!empty($ccArray)) {
-                $payload['cc'] = $ccArray;
-            }
+        if (!empty($ccArray)) {
+            $payload['cc'] = $ccArray;
         }
 
         $ch = curl_init(self::RESEND_API_URL);
