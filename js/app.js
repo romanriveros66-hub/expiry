@@ -14,6 +14,9 @@ const App = (() => {
       dias_alerta_rojo: 7
     },
     csrfToken: '',
+    authToken: localStorage.getItem('expiry_auth_token') || '',
+    useRemoteApi: localStorage.getItem('expiry_use_remote_api') === 'true',
+    remoteApiBase: 'https://expiry-gules.vercel.app',
     filtroColor: 'ALL',
     busqueda: '',
     lotes: [],
@@ -21,15 +24,32 @@ const App = (() => {
     pinPendingAction: null // { accion, loteId, extraData }
   };
 
-  // 1. Fetch Seguro con CSRF y Prevención XSS
+  // 1. Fetch Seguro con CSRF, Bearer Token y CORS para localhost <-> https://expiry-gules.vercel.app/
   async function safeFetchJson(url, options = {}) {
+    const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    
+    // Si estamos en localhost y useRemoteApi está activo, apuntar a https://expiry-gules.vercel.app
+    let targetUrl = url;
+    if (isLocalhost && state.useRemoteApi && !url.startsWith('http')) {
+      targetUrl = state.remoteApiBase.replace(/\/$/, '') + '/' + url.replace(/^\//, '');
+    }
+
     const headers = options.headers || {};
     if (state.csrfToken) {
       headers['X-CSRF-Token'] = state.csrfToken;
     }
+    if (state.authToken) {
+      headers['Authorization'] = 'Bearer ' + state.authToken;
+      headers['X-Auth-Token'] = state.authToken;
+    }
 
     try {
-      const response = await fetch(url, { ...options, headers });
+      const fetchOptions = {
+        ...options,
+        headers,
+        credentials: 'include' // Para enviar cookies de sesión entre orígenes
+      };
+      const response = await fetch(targetUrl, fetchOptions);
       const text = await response.text();
       let data;
       try {
@@ -41,6 +61,10 @@ const App = (() => {
 
       if (data && data.csrf_token) {
         state.csrfToken = data.csrf_token;
+      }
+      if (data && data.token) {
+        state.authToken = data.token;
+        localStorage.setItem('expiry_auth_token', data.token);
       }
 
       if (!response.ok && data && data.code === 'UNAUTHORIZED') {
@@ -97,6 +121,7 @@ const App = (() => {
 
   // 3. Inicialización de la Aplicación
   async function init() {
+    renderApiSwitchBadge();
     setupEventListeners();
     await checkAuthStatus();
     setupSimulator();
@@ -778,6 +803,10 @@ const App = (() => {
       });
       if (res.status === 'success') {
         state.user = res.user;
+        if (res.token) {
+          state.authToken = res.token;
+          localStorage.setItem('expiry_auth_token', res.token);
+        }
         showToast(res.message, 'success');
         closeAuthModal();
         showAppView();
@@ -800,6 +829,10 @@ const App = (() => {
       });
       if (res.status === 'success') {
         state.user = res.user;
+        if (res.token) {
+          state.authToken = res.token;
+          localStorage.setItem('expiry_auth_token', res.token);
+        }
         showToast(res.message, 'success');
         closeAuthModal();
         showAppView();
@@ -822,6 +855,10 @@ const App = (() => {
       });
       if (res.status === 'success') {
         state.user = res.user;
+        if (res.token) {
+          state.authToken = res.token;
+          localStorage.setItem('expiry_auth_token', res.token);
+        }
         showToast(res.message, 'success');
         closeAuthModal();
         showAppView();
@@ -835,12 +872,12 @@ const App = (() => {
   async function logout() {
     try {
       await safeFetchJson('api/auth.php?action=logout');
-      state.user = null;
-      showToast('Sesión cerrada correctamente.', 'info');
-      showLandingView();
-    } catch (e) {
-      showLandingView();
-    }
+    } catch (e) {}
+    state.user = null;
+    state.authToken = '';
+    localStorage.removeItem('expiry_auth_token');
+    showToast('Sesión cerrada correctamente.', 'info');
+    showLandingView();
   }
 
   // 10. Modal de Auditoría de Seguridad & VulnScope Checklist
@@ -1781,9 +1818,75 @@ const App = (() => {
     onFiltroToggleChange,
     seleccionarRemitente,
     showAppView,
-    showLandingView
+    showLandingView,
+    toggleRemoteApi,
+    setApiTarget,
+    renderApiSwitchBadge
   };
 })();
+
+// Switch y Badge interactivo de API para localhost <-> https://expiry-gules.vercel.app/
+function toggleRemoteApi() {
+  state.useRemoteApi = !state.useRemoteApi;
+  localStorage.setItem('expiry_use_remote_api', state.useRemoteApi ? 'true' : 'false');
+  renderApiSwitchBadge();
+  showToast(
+    state.useRemoteApi
+      ? '☁️ Conectado a la API en la nube: ' + state.remoteApiBase
+      : '💻 Conectado a la API local (localhost)',
+    'info'
+  );
+  checkAuthStatus();
+}
+
+function setApiTarget(target) {
+  state.useRemoteApi = (target === 'remote');
+  localStorage.setItem('expiry_use_remote_api', state.useRemoteApi ? 'true' : 'false');
+  renderApiSwitchBadge();
+  checkAuthStatus();
+}
+
+function renderApiSwitchBadge() {
+  const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  let badge = document.getElementById('apiSwitchBadge');
+  if (!isLocalhost) {
+    if (badge) badge.remove();
+    return;
+  }
+
+  if (!badge) {
+    badge = document.createElement('div');
+    badge.id = 'apiSwitchBadge';
+    badge.style.position = 'fixed';
+    badge.style.bottom = '18px';
+    badge.style.left = '18px';
+    badge.style.zIndex = '99999';
+    badge.style.cursor = 'pointer';
+    badge.style.padding = '8px 14px';
+    badge.style.borderRadius = '50px';
+    badge.style.fontSize = '12px';
+    badge.style.fontWeight = '700';
+    badge.style.display = 'flex';
+    badge.style.alignItems = 'center';
+    badge.style.gap = '8px';
+    badge.style.boxShadow = '0 4px 14px rgba(0,0,0,0.2)';
+    badge.style.transition = 'all 0.25s ease';
+    badge.onclick = () => App.toggleRemoteApi();
+    document.body.appendChild(badge);
+  }
+
+  if (state.useRemoteApi) {
+    badge.style.background = '#0284c7';
+    badge.style.color = '#ffffff';
+    badge.innerHTML = '<i class="fas fa-cloud"></i> <span>API: Vercel Cloud (expiry-gules)</span> <i class="fas fa-sync-alt" style="font-size:10px;opacity:0.8;"></i>';
+    badge.title = 'Haga clic para cambiar a la API local de localhost';
+  } else {
+    badge.style.background = '#1e293b';
+    badge.style.color = '#f8fafc';
+    badge.innerHTML = '<i class="fas fa-laptop-code"></i> <span>API: Localhost (XAMPP)</span> <i class="fas fa-sync-alt" style="font-size:10px;opacity:0.8;"></i>';
+    badge.title = 'Haga clic para conectar su localhost a https://expiry-gules.vercel.app';
+  }
+}
 
 // Inicialización de la aplicación
 document.addEventListener('DOMContentLoaded', App.init);

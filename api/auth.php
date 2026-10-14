@@ -59,12 +59,13 @@ switch ($action) {
             'email' => $user['email'],
             'rol' => $user['rol']
         ];
-        setSignedAuthCookie($_SESSION['user']);
+        $token = setSignedAuthCookie($_SESSION['user']);
 
         jsonResponse([
             'status' => 'success',
             'message' => '¡Bienvenido de nuevo, ' . htmlspecialchars($user['nombre'], ENT_QUOTES, 'UTF-8') . '!',
             'user' => $_SESSION['user'],
+            'token' => $token,
             'csrf_token' => getCsrfToken()
         ]);
         break;
@@ -183,12 +184,13 @@ switch ($action) {
                 'email' => $user['email'],
                 'rol' => $user['rol']
             ];
-            setSignedAuthCookie($_SESSION['user']);
+            $token = setSignedAuthCookie($_SESSION['user']);
 
             jsonResponse([
                 'status' => 'success',
                 'message' => 'Acceso demo concedido como ' . ($rol === 'admin' ? 'Administrador' : 'Empleado / Cajero'),
                 'user' => $_SESSION['user'],
+                'token' => $token,
                 'csrf_token' => getCsrfToken()
             ]);
         } else {

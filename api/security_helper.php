@@ -68,14 +68,51 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// 2. Cabeceras de Seguridad HTTP (Cabeceras, CSP, HSTS)
+// 2. Cabeceras de Seguridad HTTP y Manejo de CORS (Conexión localhost <-> https://expiry-gules.vercel.app/)
+function handleCors(): void {
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    if (empty($origin) && !empty($_SERVER['HTTP_REFERER'])) {
+        $refParts = parse_url($_SERVER['HTTP_REFERER']);
+        if (!empty($refParts['scheme']) && !empty($refParts['host'])) {
+            $origin = $refParts['scheme'] . '://' . $refParts['host'] . (!empty($refParts['port']) ? ':' . $refParts['port'] : '');
+        }
+    }
+
+    $isAllowed = false;
+    if (!empty($origin)) {
+        if ($origin === 'https://expiry-gules.vercel.app' || $origin === 'http://localhost' || $origin === 'http://127.0.0.1') {
+            $isAllowed = true;
+        } elseif (preg_match('/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i', $origin)) {
+            $isAllowed = true;
+        } elseif (preg_match('/^https:\/\/expiry(-[a-z0-9_-]+)?\.vercel\.app$/i', $origin)) {
+            $isAllowed = true;
+        }
+    }
+
+    if ($isAllowed) {
+        header("Access-Control-Allow-Origin: {$origin}");
+        header("Access-Control-Allow-Credentials: true");
+        header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+        header("Access-Control-Allow-Headers: Content-Type, X-CSRF-Token, Authorization, X-Requested-With, Accept, X-Auth-Token");
+        header("Access-Control-Max-Age: 86400");
+    }
+
+    // Responder inmediatamente a solicitudes pre-flight OPTIONS
+    if (isset($_SERVER['REQUEST_METHOD']) && strtoupper($_SERVER['REQUEST_METHOD']) === 'OPTIONS') {
+        if (ob_get_length()) ob_clean();
+        http_response_code(204);
+        exit;
+    }
+}
+
 function sendSecurityHeaders() {
     if (!headers_sent()) {
+        handleCors();
         header('X-Content-Type-Options: nosniff');
         header('X-Frame-Options: SAMEORIGIN');
         header('X-XSS-Protection: 1; mode=block');
         header('Referrer-Policy: strict-origin-when-cross-origin');
-        header("Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';");
+        header("Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://expiry-gules.vercel.app http://localhost:* http://127.0.0.1:*; frame-ancestors 'self'; base-uri 'self'; form-action 'self';");
         header("Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=()");
 
         if (isHttpsRequest()) {
@@ -91,7 +128,7 @@ function getAuthSecretKey(): string {
     return hash('sha256', getenv('DATABASE_URL') ?: (getenv('SUPABASE_DB_URL') ?: 'expiry_secure_salt_key_2026_minimarket'));
 }
 
-function setSignedAuthCookie(array $user): void {
+function setSignedAuthCookie(array $user): string {
     $isSecure = isHttpsRequest();
 
     $csrfToken = getCsrfToken();
@@ -112,12 +149,13 @@ function setSignedAuthCookie(array $user): void {
             'domain'   => '',
             'secure'   => $isSecure,
             'httponly' => true,
-            'samesite' => 'Lax'
+            'samesite' => $isSecure ? 'None' : 'Lax'
         ]);
     } else {
-        setcookie('expiry_auth_token', $token, time() + (86400 * 30), '/; samesite=Lax', '', $isSecure, true);
+        setcookie('expiry_auth_token', $token, time() + (86400 * 30), '/; samesite=' . ($isSecure ? 'None' : 'Lax'), '', $isSecure, true);
     }
     $_COOKIE['expiry_auth_token'] = $token;
+    return $token;
 }
 
 function clearSignedAuthCookie(): void {
@@ -129,16 +167,25 @@ function clearSignedAuthCookie(): void {
             'domain'   => '',
             'secure'   => $isSecure,
             'httponly' => true,
-            'samesite' => 'Lax'
+            'samesite' => $isSecure ? 'None' : 'Lax'
         ]);
     } else {
-        setcookie('expiry_auth_token', '', time() - 3600, '/; samesite=Lax', '', $isSecure, true);
+        setcookie('expiry_auth_token', '', time() - 3600, '/; samesite=' . ($isSecure ? 'None' : 'Lax'), '', $isSecure, true);
     }
     unset($_COOKIE['expiry_auth_token']);
 }
 
 function loadSignedAuthCookie(): ?array {
     $token = $_COOKIE['expiry_auth_token'] ?? '';
+    // Soporte para autenticación por cabecera Bearer / X-Auth-Token (útil para clientes en localhost comunicándose con Vercel)
+    if (empty($token) && !empty($_SERVER['HTTP_AUTHORIZATION'])) {
+        if (preg_match('/Bearer\s+(\S+)/i', $_SERVER['HTTP_AUTHORIZATION'], $m)) {
+            $token = $m[1];
+        }
+    }
+    if (empty($token) && !empty($_SERVER['HTTP_X_AUTH_TOKEN'])) {
+        $token = $_SERVER['HTTP_X_AUTH_TOKEN'];
+    }
     if (empty($token) || strpos($token, '.') === false) {
         return null;
     }
