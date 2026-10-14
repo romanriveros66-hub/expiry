@@ -101,20 +101,28 @@ switch ($action) {
             if ($tipo === 'PRINCIPAL') {
                 // Degradar cualquier otro principal a CC para mantener unicidad de buzon maestro
                 $pdo->exec("UPDATE contactos_reporte SET tipo_destinatario = 'CC' WHERE tipo_destinatario = 'PRINCIPAL'");
-                $pdo->prepare("UPDATE configuracion SET email_notificaciones = ?, updated_at = NOW() WHERE id = 1")->execute([$email]);
+                $pdo->prepare("UPDATE configuracion SET email_notificaciones = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1")->execute([$email]);
             }
 
-            // Insertar o actualizar
-            $stmtIns = $pdo->prepare("
-                INSERT INTO contactos_reporte (nombre, email, cargo, tipo_destinatario, activo)
-                VALUES (?, ?, ?, ?, 1)
-                ON DUPLICATE KEY UPDATE 
-                    nombre = VALUES(nombre),
-                    cargo = VALUES(cargo),
-                    tipo_destinatario = VALUES(tipo_destinatario),
-                    activo = 1
-            ");
-            $stmtIns->execute([$nombre, $email, $cargo, $tipo]);
+            // Insertar o actualizar con compatibilidad universal PostgreSQL y MySQL
+            $stmtCheck = $pdo->prepare("SELECT id FROM contactos_reporte WHERE email = ? LIMIT 1");
+            $stmtCheck->execute([$email]);
+            $existingId = $stmtCheck->fetchColumn();
+
+            if ($existingId) {
+                $stmtUpd = $pdo->prepare("
+                    UPDATE contactos_reporte 
+                    SET nombre = ?, cargo = ?, tipo_destinatario = ?, activo = 1 
+                    WHERE id = ?
+                ");
+                $stmtUpd->execute([$nombre, $cargo, $tipo, $existingId]);
+            } else {
+                $stmtIns = $pdo->prepare("
+                    INSERT INTO contactos_reporte (nombre, email, cargo, tipo_destinatario, activo)
+                    VALUES (?, ?, ?, ?, 1)
+                ");
+                $stmtIns->execute([$nombre, $email, $cargo, $tipo]);
+            }
 
             // Sincronizar campo emails_copia en configuracion
             $stmtCc = $pdo->query("SELECT email FROM contactos_reporte WHERE tipo_destinatario = 'CC' AND activo = 1");
@@ -135,7 +143,7 @@ switch ($action) {
                 'emails_copia' => $ccStr,
                 'csrf_token' => getCsrfToken()
             ]);
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             jsonResponse(['status' => 'error', 'message' => 'Error al guardar contacto: ' . $e->getMessage()], 500);
         }
@@ -176,11 +184,11 @@ switch ($action) {
             // Si se eliminó el principal, asignar el primero restante como principal
             $stmtHasPrincipal = $pdo->query("SELECT COUNT(*) FROM contactos_reporte WHERE tipo_destinatario = 'PRINCIPAL'");
             if ((int)$stmtHasPrincipal->fetchColumn() === 0) {
-                $pdo->exec("UPDATE contactos_reporte SET tipo_destinatario = 'PRINCIPAL' ORDER BY id ASC LIMIT 1");
-                $stmtNewMain = $pdo->query("SELECT email FROM contactos_reporte WHERE tipo_destinatario = 'PRINCIPAL' LIMIT 1");
-                $newMain = $stmtNewMain->fetch();
-                if ($newMain) {
-                    $pdo->prepare("UPDATE configuracion SET email_notificaciones = ? WHERE id = 1")->execute([$newMain['email']]);
+                $stmtFirst = $pdo->query("SELECT id, email FROM contactos_reporte ORDER BY id ASC LIMIT 1");
+                $firstRow = $stmtFirst->fetch();
+                if ($firstRow) {
+                    $pdo->prepare("UPDATE contactos_reporte SET tipo_destinatario = 'PRINCIPAL' WHERE id = ?")->execute([$firstRow['id']]);
+                    $pdo->prepare("UPDATE configuracion SET email_notificaciones = ? WHERE id = 1")->execute([$firstRow['email']]);
                 }
             }
 
@@ -222,7 +230,7 @@ switch ($action) {
         try {
             $pdo->beginTransaction();
 
-            $stmtTgl = $pdo->prepare("UPDATE contactos_reporte SET activo = IF(activo = 1, 0, 1) WHERE id = ?");
+            $stmtTgl = $pdo->prepare("UPDATE contactos_reporte SET activo = CASE WHEN activo = 1 THEN 0 ELSE 1 END WHERE id = ?");
             $stmtTgl->execute([$id]);
 
             // Sincronizar emails_copia
