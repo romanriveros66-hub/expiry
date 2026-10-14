@@ -30,13 +30,20 @@ const App = (() => {
 
     try {
       const response = await fetch(url, { ...options, headers });
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        console.error('Non-JSON response from server:', text);
+        throw new Error('Respuesta del servidor (' + response.status + '): ' + (text.replace(/<[^>]*>?/gm, '').substring(0, 100) || 'Error'));
+      }
 
-      if (data.csrf_token) {
+      if (data && data.csrf_token) {
         state.csrfToken = data.csrf_token;
       }
 
-      if (!response.ok && data.code === 'UNAUTHORIZED') {
+      if (!response.ok && data && data.code === 'UNAUTHORIZED') {
         state.user = null;
         updateUI();
         showToast('Sesión finalizada. Inicie sesión nuevamente.', 'error');
@@ -413,7 +420,7 @@ const App = (() => {
         showToast(res.message || 'Error al guardar', 'error');
       }
     } catch (err) {
-      showToast('Error de conexión con el servidor', 'error');
+      showToast(err.message || 'Error de conexión con el servidor', 'error');
     } finally {
       submitBtn.innerHTML = originalText;
       submitBtn.disabled = false;

@@ -57,6 +57,7 @@ if ($anio < ($anioActual - 2) || $anio > ($anioActual + 20)) {
 
 try {
     $pdo->beginTransaction();
+    $isPg = ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql');
 
     // 1. Buscar si el producto ya existe en catálogo
     $stmtProd = $pdo->prepare("SELECT id, precio_costo, precio_venta FROM productos WHERE codigo_barra = ? OR nombre = ? LIMIT 1");
@@ -73,17 +74,31 @@ try {
                 categoria_id = COALESCE(?, categoria_id),
                 precio_costo = CASE WHEN ? > 0 THEN ? ELSE precio_costo END,
                 precio_venta = CASE WHEN ? > 0 THEN ? ELSE precio_venta END,
-                updated_at = NOW()
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         ");
         $stmtUpd->execute([$nombre, $marca, $categoriaId, $precioCosto, $precioCosto, $precioVenta, $precioVenta, $productoId]);
     } else {
-        $stmtIns = $pdo->prepare("
-            INSERT INTO productos (codigo_barra, nombre, marca, categoria_id, unidad_medida, precio_costo, precio_venta, activo)
-            VALUES (?, ?, ?, ?, 'UNIDAD', ?, ?, 1)
-        ");
-        $stmtIns->execute([$codigoBarra, $nombre, $marca, $categoriaId, $precioCosto, $precioVenta]);
-        $productoId = (int)$pdo->lastInsertId();
+        if ($isPg) {
+            $stmtIns = $pdo->prepare("
+                INSERT INTO productos (codigo_barra, nombre, marca, categoria_id, unidad_medida, precio_costo, precio_venta, activo)
+                VALUES (?, ?, ?, ?, 'UNIDAD', ?, ?, 1)
+                RETURNING id
+            ");
+            $stmtIns->execute([$codigoBarra, $nombre, $marca, $categoriaId, $precioCosto, $precioVenta]);
+            $productoId = (int)$stmtIns->fetchColumn();
+        } else {
+            $stmtIns = $pdo->prepare("
+                INSERT INTO productos (codigo_barra, nombre, marca, categoria_id, unidad_medida, precio_costo, precio_venta, activo)
+                VALUES (?, ?, ?, ?, 'UNIDAD', ?, ?, 1)
+            ");
+            $stmtIns->execute([$codigoBarra, $nombre, $marca, $categoriaId, $precioCosto, $precioVenta]);
+            $productoId = (int)$pdo->lastInsertId();
+        }
+    }
+
+    if (!$productoId) {
+        throw new Exception("No se pudo obtener el identificador del producto.");
     }
 
     // 2. Autogenerar código de lote si está vacío
@@ -92,22 +107,42 @@ try {
     }
 
     // 3. Insertar el lote con fecha de expiración
-    $stmtLote = $pdo->prepare("
-        INSERT INTO lotes_vencimiento 
-        (producto_id, codigo_lote, cantidad_inicial, cantidad_actual, fecha_ingreso, fecha_vencimiento, ubicacion, estado, notas, creado_por)
-        VALUES (?, ?, ?, ?, CURDATE(), ?, ?, 'activo', ?, ?)
-    ");
-    $stmtLote->execute([
-        $productoId,
-        $codigoLote,
-        $cantidad,
-        $cantidad,
-        $fechaVencimiento,
-        !empty($ubicacion) ? $ubicacion : 'Góndola',
-        $notas,
-        $user['id']
-    ]);
-    $loteId = (int)$pdo->lastInsertId();
+    if ($isPg) {
+        $stmtLote = $pdo->prepare("
+            INSERT INTO lotes_vencimiento 
+            (producto_id, codigo_lote, cantidad_inicial, cantidad_actual, fecha_ingreso, fecha_vencimiento, ubicacion, estado, notas, creado_por)
+            VALUES (?, ?, ?, ?, CURRENT_DATE, ?, ?, 'activo', ?, ?)
+            RETURNING id
+        ");
+        $stmtLote->execute([
+            $productoId,
+            $codigoLote,
+            $cantidad,
+            $cantidad,
+            $fechaVencimiento,
+            !empty($ubicacion) ? $ubicacion : 'Góndola',
+            $notas,
+            $user['id'] ?? null
+        ]);
+        $loteId = (int)$stmtLote->fetchColumn();
+    } else {
+        $stmtLote = $pdo->prepare("
+            INSERT INTO lotes_vencimiento 
+            (producto_id, codigo_lote, cantidad_inicial, cantidad_actual, fecha_ingreso, fecha_vencimiento, ubicacion, estado, notas, creado_por)
+            VALUES (?, ?, ?, ?, CURRENT_DATE, ?, ?, 'activo', ?, ?)
+        ");
+        $stmtLote->execute([
+            $productoId,
+            $codigoLote,
+            $cantidad,
+            $cantidad,
+            $fechaVencimiento,
+            !empty($ubicacion) ? $ubicacion : 'Góndola',
+            $notas,
+            $user['id'] ?? null
+        ]);
+        $loteId = (int)$pdo->lastInsertId();
+    }
 
     $pdo->commit();
 
@@ -123,9 +158,10 @@ try {
         'csrf_token' => getCsrfToken()
     ]);
 
-} catch (Exception $e) {
-    if ($pdo->inTransaction()) {
+} catch (Throwable $e) {
+    if ($pdo && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    error_log("Error carga_rapida: " . $e->getMessage());
     jsonResponse(['status' => 'error', 'message' => 'Error al guardar la mercadería: ' . $e->getMessage()], 500);
 }

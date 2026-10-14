@@ -107,12 +107,23 @@ switch ($action) {
             $pinHash = password_hash($adminPin, PASSWORD_BCRYPT);
 
             // Crear usuario administrador
-            $stmtInsert = $pdo->prepare("
-                INSERT INTO usuarios (nombre, usuario, email, password_hash, rol, activo)
-                VALUES (?, ?, ?, ?, 'admin', 1)
-            ");
-            $stmtInsert->execute([$nombre, $usuario, !empty($email) ? $email : null, $passHash]);
-            $newUserId = (int)$pdo->lastInsertId();
+            $isPg = ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql');
+            if ($isPg) {
+                $stmtInsert = $pdo->prepare("
+                    INSERT INTO usuarios (nombre, usuario, email, password_hash, rol, activo)
+                    VALUES (?, ?, ?, ?, 'admin', 1)
+                    RETURNING id
+                ");
+                $stmtInsert->execute([$nombre, $usuario, !empty($email) ? $email : null, $passHash]);
+                $newUserId = (int)$stmtInsert->fetchColumn();
+            } else {
+                $stmtInsert = $pdo->prepare("
+                    INSERT INTO usuarios (nombre, usuario, email, password_hash, rol, activo)
+                    VALUES (?, ?, ?, ?, 'admin', 1)
+                ");
+                $stmtInsert->execute([$nombre, $usuario, !empty($email) ? $email : null, $passHash]);
+                $newUserId = (int)$pdo->lastInsertId();
+            }
 
             // Si especificó nombre de negocio, actualizar la configuración del minimarket y el PIN
             if (!empty($nombreNegocio)) {
