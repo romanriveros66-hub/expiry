@@ -35,8 +35,26 @@ switch ($action) {
         $count = $stmtCount->fetch();
 
         $stmtContactos = $pdo->query("SELECT id, nombre, email, cargo, tipo_destinatario, activo FROM contactos_reporte ORDER BY tipo_destinatario DESC, id ASC");
+        $contactos = $stmtContactos ? $stmtContactos->fetchAll() : [];
         $rawKey = (string)($cfg['resend_api_key'] ?? '');
         $keyMasked = !empty($rawKey) ? (substr($rawKey, 0, min(8, strlen($rawKey))) . '••••••••••••••••••••' . (strlen($rawKey) > 4 ? substr($rawKey, -4) : '')) : '';
+
+        // Resolver correo principal con respaldo en contactos_reporte
+        $resolvedEmailNotif = !empty($cfg['email_notificaciones']) ? $cfg['email_notificaciones'] : '';
+        if (empty($resolvedEmailNotif) && !empty($contactos)) {
+            foreach ($contactos as $c) {
+                if ($c['tipo_destinatario'] === 'PRINCIPAL' && !empty($c['email'])) {
+                    $resolvedEmailNotif = $c['email'];
+                    break;
+                }
+            }
+            if (empty($resolvedEmailNotif) && !empty($contactos[0]['email'])) {
+                $resolvedEmailNotif = $contactos[0]['email'];
+            }
+        }
+        if (empty($resolvedEmailNotif)) {
+            $resolvedEmailNotif = $userEmail;
+        }
 
         jsonResponse([
             'status' => 'success',
@@ -48,11 +66,11 @@ switch ($action) {
                 'smtp_host'           => $cfg['smtp_host'] ?: 'smtp.gmail.com',
                 'smtp_port'           => (int)($cfg['smtp_port'] ?: 465),
                 'smtp_seguridad'      => strtolower($cfg['smtp_seguridad'] ?: 'ssl'),
-                'smtp_user'           => !empty($cfg['smtp_user']) ? $cfg['smtp_user'] : $userEmail,
+                'smtp_user'           => !empty($cfg['smtp_user']) ? $cfg['smtp_user'] : $resolvedEmailNotif,
                 'smtp_pass_configured'=> !empty($cfg['smtp_pass']),
                 'notificar_email'     => (int)($cfg['notificar_email'] ?? 1),
-                'email_notificaciones'=> !empty($cfg['email_notificaciones']) ? $cfg['email_notificaciones'] : $userEmail,
-                'user_email'          => $userEmail,
+                'email_notificaciones'=> $resolvedEmailNotif,
+                'user_email'          => $resolvedEmailNotif,
                 'frecuencia_reporte'  => $cfg['frecuencia_reporte'] ?? 'DIARIO',
                 'hora_reporte'        => $cfg['hora_reporte'] ?? '08:00',
                 'emails_copia'        => $cfg['emails_copia'] ?? '',
@@ -262,7 +280,7 @@ switch ($action) {
             jsonResponse(['status' => 'error', 'message' => 'Token CSRF inválido.'], 403);
         }
 
-        $emailDestino       = trim($_POST['email_destino'] ?? '');
+        $emailDestino       = trim($_POST['email_destino'] ?? $_POST['email'] ?? '');
         $notificarEmail     = isset($_POST['notificar_email']) ? 1 : 0;
         $frecuenciaReporte  = trim($_POST['frecuencia_reporte'] ?? 'DIARIO');
         $horaReporte        = trim($_POST['hora_reporte'] ?? '08:00');
@@ -273,6 +291,25 @@ switch ($action) {
         $incluirFinanciero  = isset($_POST['incluir_financiero']) ? 1 : 0;
         $incluirSugerencias = isset($_POST['incluir_sugerencias']) ? 1 : 0;
         $apiKey             = trim($_POST['resend_api_key'] ?? '');
+
+        // Si emailDestino viene vacío, no sobreescribir con vacío: resolver de contactos_reporte o configuracion actual
+        if (empty($emailDestino)) {
+            $stmtP = $pdo->query("SELECT email FROM contactos_reporte WHERE tipo_destinatario = 'PRINCIPAL' AND activo = 1 LIMIT 1");
+            $emailDestino = $stmtP ? ($stmtP->fetchColumn() ?: '') : '';
+        }
+        if (empty($emailDestino)) {
+            $stmtC = $pdo->query("SELECT email_notificaciones FROM configuracion LIMIT 1");
+            $emailDestino = $stmtC ? ($stmtC->fetchColumn() ?: '') : '';
+        }
+
+        // Si emailsCopiaRaw viene vacío, sincronizar con contactos CC activos
+        if (empty($emailsCopiaRaw)) {
+            $stmtCcList = $pdo->query("SELECT email FROM contactos_reporte WHERE tipo_destinatario = 'CC' AND activo = 1");
+            $ccList = $stmtCcList ? $stmtCcList->fetchAll(PDO::FETCH_COLUMN) : [];
+            if (!empty($ccList)) {
+                $emailsCopiaRaw = implode(', ', $ccList);
+            }
+        }
 
         // Nuevos campos de Motor SMTP
         $emailMetodo        = strtoupper(trim($_POST['email_metodo'] ?? 'RESEND'));
@@ -438,22 +475,56 @@ switch ($action) {
         }
 
         $stmtCfg = $pdo->query("SELECT nombre_negocio, email_notificaciones, emails_copia, email_metodo FROM configuracion LIMIT 1");
-        $cfg = $stmtCfg->fetch();
+        $cfg = $stmtCfg ? $stmtCfg->fetch() : [];
         $nombreNegocio = $cfg['nombre_negocio'] ?? 'Minimarket';
 
-        $emailDestino = trim($_POST['email'] ?? '');
-        if (empty($emailDestino)) {
-            $stmtUser = $pdo->prepare("SELECT email FROM usuarios WHERE id = ? LIMIT 1");
-            $stmtUser->execute([$user['id']]);
-            $u = $stmtUser->fetch();
-            $emailDestino = !empty($u['email']) ? $u['email'] : ($user['email'] ?? '');
+        // Cascada de resolución robusta del correo principal de destino
+        $emailDestino = trim($_POST['email'] ?? $_POST['email_destino'] ?? '');
+
+        if (empty($emailDestino) || !filter_var($emailDestino, FILTER_VALIDATE_EMAIL)) {
+            $stmtPrinc = $pdo->query("SELECT email FROM contactos_reporte WHERE tipo_destinatario = 'PRINCIPAL' AND activo = 1 LIMIT 1");
+            $pEmail = $stmtPrinc ? $stmtPrinc->fetchColumn() : null;
+            if (!empty($pEmail) && filter_var(trim($pEmail), FILTER_VALIDATE_EMAIL)) {
+                $emailDestino = trim($pEmail);
+            }
         }
 
         if (empty($emailDestino) || !filter_var($emailDestino, FILTER_VALIDATE_EMAIL)) {
-            jsonResponse(['status' => 'error', 'message' => 'No hay un correo electrónico válido configurado para enviar la prueba.'], 400);
+            if (!empty($cfg['email_notificaciones']) && filter_var(trim($cfg['email_notificaciones']), FILTER_VALIDATE_EMAIL)) {
+                $emailDestino = trim($cfg['email_notificaciones']);
+            }
+        }
+
+        if (empty($emailDestino) || !filter_var($emailDestino, FILTER_VALIDATE_EMAIL)) {
+            $stmtAny = $pdo->query("SELECT email FROM contactos_reporte WHERE activo = 1 ORDER BY id ASC LIMIT 1");
+            $aEmail = $stmtAny ? $stmtAny->fetchColumn() : null;
+            if (!empty($aEmail) && filter_var(trim($aEmail), FILTER_VALIDATE_EMAIL)) {
+                $emailDestino = trim($aEmail);
+            }
+        }
+
+        if (empty($emailDestino) || !filter_var($emailDestino, FILTER_VALIDATE_EMAIL)) {
+            $stmtUser = $pdo->prepare("SELECT email FROM usuarios WHERE id = ? LIMIT 1");
+            $stmtUser->execute([$user['id'] ?? 1]);
+            $u = $stmtUser->fetch();
+            $uEmail = !empty($u['email']) ? $u['email'] : ($user['email'] ?? '');
+            if (!empty($uEmail) && filter_var(trim($uEmail), FILTER_VALIDATE_EMAIL)) {
+                $emailDestino = trim($uEmail);
+            }
+        }
+
+        if (empty($emailDestino) || !filter_var($emailDestino, FILTER_VALIDATE_EMAIL)) {
+            jsonResponse(['status' => 'error', 'message' => 'No hay un correo electrónico de destino válido configurado.'], 400);
         }
 
         $emailsCopia = isset($_POST['emails_copia']) ? trim($_POST['emails_copia']) : ($cfg['emails_copia'] ?? '');
+        if (empty($emailsCopia)) {
+            $stmtCcList = $pdo->query("SELECT email FROM contactos_reporte WHERE tipo_destinatario = 'CC' AND activo = 1");
+            $ccList = $stmtCcList ? $stmtCcList->fetchAll(PDO::FETCH_COLUMN) : [];
+            if (!empty($ccList)) {
+                $emailsCopia = implode(', ', $ccList);
+            }
+        }
 
         $resultado = ResendEmailService::sendTestEmail($emailDestino, $user['nombre'], $nombreNegocio, $emailsCopia);
 
@@ -507,13 +578,53 @@ switch ($action) {
         $nombreNegocio = $cfg['nombre_negocio'] ?? 'Minimarket';
         $moneda = $cfg['moneda_simbolo'] ?? 'Gs.';
 
-        $emailDestino = !empty($_POST['email']) ? trim($_POST['email']) : (!empty($cfg['email_notificaciones']) ? $cfg['email_notificaciones'] : ($user['email'] ?? ''));
+        // Cascada de resolución robusta del correo principal de destino
+        $emailDestino = trim($_POST['email'] ?? $_POST['email_destino'] ?? '');
 
         if (empty($emailDestino) || !filter_var($emailDestino, FILTER_VALIDATE_EMAIL)) {
-            jsonResponse(['status' => 'error', 'message' => 'Por favor configure un correo electrónico de destino válido.'], 400);
+            $stmtPrinc = $pdo->query("SELECT email FROM contactos_reporte WHERE tipo_destinatario = 'PRINCIPAL' AND activo = 1 LIMIT 1");
+            $pEmail = $stmtPrinc ? $stmtPrinc->fetchColumn() : null;
+            if (!empty($pEmail) && filter_var(trim($pEmail), FILTER_VALIDATE_EMAIL)) {
+                $emailDestino = trim($pEmail);
+            }
+        }
+
+        if (empty($emailDestino) || !filter_var($emailDestino, FILTER_VALIDATE_EMAIL)) {
+            if (!empty($cfg['email_notificaciones']) && filter_var(trim($cfg['email_notificaciones']), FILTER_VALIDATE_EMAIL)) {
+                $emailDestino = trim($cfg['email_notificaciones']);
+            }
+        }
+
+        if (empty($emailDestino) || !filter_var($emailDestino, FILTER_VALIDATE_EMAIL)) {
+            $stmtAny = $pdo->query("SELECT email FROM contactos_reporte WHERE activo = 1 ORDER BY id ASC LIMIT 1");
+            $aEmail = $stmtAny ? $stmtAny->fetchColumn() : null;
+            if (!empty($aEmail) && filter_var(trim($aEmail), FILTER_VALIDATE_EMAIL)) {
+                $emailDestino = trim($aEmail);
+            }
+        }
+
+        if (empty($emailDestino) || !filter_var($emailDestino, FILTER_VALIDATE_EMAIL)) {
+            $stmtUser = $pdo->prepare("SELECT email FROM usuarios WHERE id = ? LIMIT 1");
+            $stmtUser->execute([$user['id'] ?? 1]);
+            $u = $stmtUser->fetch();
+            $uEmail = !empty($u['email']) ? $u['email'] : ($user['email'] ?? '');
+            if (!empty($uEmail) && filter_var(trim($uEmail), FILTER_VALIDATE_EMAIL)) {
+                $emailDestino = trim($uEmail);
+            }
+        }
+
+        if (empty($emailDestino) || !filter_var($emailDestino, FILTER_VALIDATE_EMAIL)) {
+            jsonResponse(['status' => 'error', 'message' => 'Por favor configure un correo electrónico de destino válido en la sección de destinatarios.'], 400);
         }
 
         $emailsCopia = !empty($_POST['emails_copia']) ? trim($_POST['emails_copia']) : ($cfg['emails_copia'] ?? '');
+        if (empty($emailsCopia)) {
+            $stmtCcList = $pdo->query("SELECT email FROM contactos_reporte WHERE tipo_destinatario = 'CC' AND activo = 1");
+            $ccList = $stmtCcList ? $stmtCcList->fetchAll(PDO::FETCH_COLUMN) : [];
+            if (!empty($ccList)) {
+                $emailsCopia = implode(', ', $ccList);
+            }
+        }
 
         // Consultar lotes rojos y vencidos
         $stmtRojos = $pdo->query("SELECT * FROM v_semaforo_vencimientos WHERE color_semaforo IN ('ROJO', 'VENCIDO') ORDER BY dias_restantes ASC");

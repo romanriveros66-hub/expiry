@@ -1315,14 +1315,9 @@ const App = (() => {
 
   async function enviarEmailPrueba() {
     const btn = document.getElementById('btnSendTest');
-    const email = document.getElementById('notifUserEmail') ? document.getElementById('notifUserEmail').value.trim() : '';
+    const emailInput = document.getElementById('notifUserEmail');
+    const email = emailInput ? emailInput.value.trim() : '';
     const cc = document.getElementById('notifEmailsCopia') ? document.getElementById('notifEmailsCopia').value.trim() : '';
-
-    if (!email) {
-      showToast('Ingresá un correo principal para enviar la prueba', 'error');
-      switchReportTab('destinatarios');
-      return;
-    }
 
     const originalText = btn ? btn.innerHTML : '';
     if (btn) {
@@ -1331,7 +1326,10 @@ const App = (() => {
     }
 
     const formData = new FormData();
-    formData.append('email', email);
+    if (email) {
+      formData.append('email', email);
+      formData.append('email_destino', email);
+    }
     if (cc) formData.append('emails_copia', cc);
 
     // Adjuntar método de envío activo
@@ -1377,6 +1375,11 @@ const App = (() => {
     const emailInput = document.getElementById('notifUserEmail');
     if (emailInput && emailInput.value) {
       formData.set('email', emailInput.value.trim());
+      formData.set('email_destino', emailInput.value.trim());
+    }
+    const ccInput = document.getElementById('notifEmailsCopia');
+    if (ccInput && ccInput.value) {
+      formData.set('emails_copia', ccInput.value.trim());
     }
 
     try {

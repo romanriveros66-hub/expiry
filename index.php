@@ -1352,7 +1352,7 @@ require_once __DIR__ . '/api/security_helper.php';
                         </div>
 
                         <!-- Campos ocultos de sincronización para compatibilidad -->
-                        <input type="hidden" id="notifUserEmail" name="email_destino" value="">
+                        <input type="hidden" id="notifUserEmail" name="email_destino" value="roman.riveros.66@gmail.com">
                         <input type="hidden" id="notifEmailsCopia" name="emails_copia" value="">
 
                         <!-- Switch de Activación General -->
