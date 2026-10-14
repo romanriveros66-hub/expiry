@@ -21,9 +21,13 @@ class Database {
 
     public static function getConnection(): PDO {
         if (self::$instance === null) {
-            // 1. Soporte para URL directa de Supabase / PostgreSQL (DATABASE_URL o SUPABASE_DB_URL)
-            // Ejemplo: postgresql://postgres.[ref]:[password]@aws-0-sa-east-1.pooler.supabase.com:6543/postgres
-            $databaseUrl = getenv('DATABASE_URL') ?: getenv('SUPABASE_DB_URL');
+            // 1. Soporte para URL directa de Supabase / PostgreSQL (DATABASE_URL, POSTGRES_URL, POSTGRES_PRISMA_URL, SUPABASE_DB_URL)
+            // Creadas automáticamente por la integración de Supabase en Vercel o manualmente
+            $databaseUrl = getenv('DATABASE_URL') 
+                ?: (getenv('POSTGRES_URL') 
+                ?: (getenv('POSTGRES_PRISMA_URL') 
+                ?: (getenv('SUPABASE_DB_URL') 
+                ?: getenv('POSTGRES_URL_NON_POOLING'))));
 
             if (!empty($databaseUrl)) {
                 $dbParts = parse_url($databaseUrl);
@@ -49,19 +53,27 @@ class Database {
                     header('Content-Type: application/json; charset=utf-8');
                     echo json_encode([
                         'status'  => 'error',
-                        'message' => 'Error de conexión con la base de datos de Supabase'
+                        'message' => 'Error de conexión con Supabase PostgreSQL: ' . $e->getMessage()
                     ]);
                     exit;
                 }
             }
 
-            // 2. Conexión por variables individuales (MySQL por defecto local o PostgreSQL en la nube)
-            $driver = getenv('DB_DRIVER') ?: 'mysql';
-            $host   = getenv('DB_HOST') ?: (getenv('MYSQLHOST') ?: self::DB_HOST);
-            $port   = getenv('DB_PORT') ?: (getenv('MYSQLPORT') ?: ($driver === 'pgsql' ? 5432 : self::DB_PORT));
-            $dbname = getenv('DB_NAME') ?: (getenv('MYSQLDATABASE') ?: ($driver === 'pgsql' ? 'postgres' : self::DB_NAME));
-            $user   = getenv('DB_USER') ?: (getenv('MYSQLUSER') ?: self::DB_USER);
-            $pass   = getenv('DB_PASS') !== false ? getenv('DB_PASS') : (getenv('MYSQLPASSWORD') !== false ? getenv('MYSQLPASSWORD') : self::DB_PASS);
+            // 2. Conexión por variables individuales (MySQL local o PostgreSQL en la nube)
+            // Soporta variables de Vercel/Supabase (POSTGRES_HOST, etc.) o estándar
+            $isPgsql = getenv('DB_DRIVER') === 'pgsql' || getenv('POSTGRES_HOST') !== false;
+            $driver  = $isPgsql ? 'pgsql' : (getenv('DB_DRIVER') ?: 'mysql');
+            $host    = getenv('POSTGRES_HOST') ?: (getenv('DB_HOST') ?: (getenv('MYSQLHOST') ?: self::DB_HOST));
+            $port    = getenv('POSTGRES_PORT') ?: (getenv('DB_PORT') ?: (getenv('MYSQLPORT') ?: ($driver === 'pgsql' ? 5432 : self::DB_PORT)));
+            $dbname  = getenv('POSTGRES_DATABASE') ?: (getenv('DB_NAME') ?: (getenv('MYSQLDATABASE') ?: ($driver === 'pgsql' ? 'postgres' : self::DB_NAME)));
+            $user    = getenv('POSTGRES_USER') ?: (getenv('DB_USER') ?: (getenv('MYSQLUSER') ?: self::DB_USER));
+            $pass    = getenv('POSTGRES_PASSWORD') !== false 
+                ? getenv('POSTGRES_PASSWORD') 
+                : (getenv('DB_PASS') !== false 
+                    ? getenv('DB_PASS') 
+                    : (getenv('MYSQLPASSWORD') !== false 
+                        ? getenv('MYSQLPASSWORD') 
+                        : self::DB_PASS));
 
             if ($driver === 'pgsql') {
                 $dsn = "pgsql:host={$host};port={$port};dbname={$dbname};sslmode=require";
