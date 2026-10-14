@@ -164,10 +164,13 @@ const App = (() => {
     const roleBadge = document.getElementById('appRoleBadge');
 
     if (brandName) brandName.textContent = state.config.nombre_negocio || 'Minimarket & Despensa';
-    if (userName && state.user) userName.textContent = state.user.nombre || state.user.usuario;
+    if (userName && state.user) {
+      userName.textContent = state.user.nombre || state.user.usuario || 'Usuario Activo';
+    }
     if (roleBadge && state.user) {
-      roleBadge.textContent = state.user.rol === 'admin' ? 'Dueño / Admin' : 'Cajero / Empleado';
-      roleBadge.className = `user-role-badge ${state.user.rol === 'admin' ? 'role-admin' : 'role-empleado'}`;
+      const isAdmin = state.user.rol === 'admin';
+      roleBadge.textContent = isAdmin ? 'Dueño / Admin' : 'Cajero / Empleado';
+      roleBadge.className = `header-user-role ${isAdmin ? 'role-admin' : 'role-empleado'}`;
     }
   }
 
@@ -781,15 +784,40 @@ const App = (() => {
     const formRegister = document.getElementById('formRegister');
 
     if (tab === 'login') {
-      tabLogin.classList.add('active');
-      tabRegister.classList.remove('active');
-      formLogin.classList.remove('hidden');
-      formRegister.classList.add('hidden');
+      if (tabLogin) tabLogin.classList.add('active');
+      if (tabRegister) tabRegister.classList.remove('active');
+      if (formLogin) formLogin.classList.remove('hidden');
+      if (formRegister) formRegister.classList.add('hidden');
+      setTimeout(() => {
+        document.querySelector('#formLogin input[name="usuario"]')?.focus();
+      }, 80);
     } else {
-      tabRegister.classList.add('active');
-      tabLogin.classList.remove('active');
-      formRegister.classList.remove('hidden');
-      formLogin.classList.add('hidden');
+      if (tabRegister) tabRegister.classList.add('active');
+      if (tabLogin) tabLogin.classList.remove('active');
+      if (formRegister) formRegister.classList.remove('hidden');
+      if (formLogin) formLogin.classList.add('hidden');
+      setTimeout(() => {
+        document.querySelector('#formRegister input[name="nombre"]')?.focus();
+      }, 80);
+    }
+  }
+
+  function togglePasswordVisibility(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    if (!input) return;
+    if (input.type === 'password') {
+      input.type = 'text';
+      if (icon) {
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+      }
+    } else {
+      input.type = 'password';
+      if (icon) {
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+      }
     }
   }
 
@@ -1778,6 +1806,7 @@ const App = (() => {
     openAuthModal,
     closeAuthModal,
     switchAuthTab,
+    togglePasswordVisibility,
     loginAsDemo,
     logout,
     openVulnScopeModal,

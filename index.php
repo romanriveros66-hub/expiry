@@ -726,13 +726,27 @@ $appJsVer  = file_exists($appJsPath) ? filemtime($appJsPath) : time();
             </a>
 
             <div class="header-actions">
-                <button class="icon-bell-btn" onclick="App.openNotificacionesModal()" title="Alertas de Vencimiento">
+                <button type="button" class="icon-bell-btn" onclick="App.openNotificacionesModal()" title="Alertas de Vencimiento">
                     <i class="fas fa-bell"></i>
                     <span class="bell-badge-dot"></span>
                 </button>
-                <div class="user-avatar-circle" onclick="App.logout()" title="Perfil / Cerrar Sesión" id="appUserAvatar">
-                    <i class="fas fa-user"></i>
+
+                <!-- Perfil de Usuario con Avatar, Nombre y Rol -->
+                <div class="header-user-profile" id="headerUserProfile">
+                    <div class="user-avatar-circle" id="appUserAvatar" title="Usuario Autenticado">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="header-user-meta">
+                        <span class="header-user-name" id="appUserName">Administrador</span>
+                        <span class="header-user-role role-admin" id="appRoleBadge">Dueño / Admin</span>
+                    </div>
                 </div>
+
+                <!-- Botón Visible para Salir / Cerrar Sesión -->
+                <button type="button" class="btn-header-logout" onclick="App.logout()" title="Cerrar Sesión Segura" aria-label="Cerrar Sesión">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span class="btn-logout-text">Cerrar Sesión</span>
+                </button>
             </div>
         </header>
 
@@ -992,95 +1006,171 @@ $appJsVer  = file_exists($appJsPath) ? filemtime($appJsPath) : time();
         </div>
     </div>
 
-    <!-- Modal 1: Autenticación (Iniciar Sesión / Crear Nueva Cuenta) -->
-    <div id="authModal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div class="modal-header">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div class="brand-icon" style="width: 32px; height: 32px; font-size: 0.9rem;">
-                        <i class="fas fa-lock"></i>
+    <!-- Modal 1: Autenticación Profesional y Dinámica (Iniciar Sesión / Crear Nueva Cuenta) -->
+    <div id="authModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+        <div class="auth-modal-card">
+            <!-- Cabecera Dinámica del Modal -->
+            <div class="auth-modal-header">
+                <div class="auth-brand-wrapper">
+                    <div class="auth-icon-badge">
+                        <i class="fas fa-shield-halved"></i>
                     </div>
-                    <h3 style="font-size: 1.15rem; font-weight: 700;">Acceso al Sistema</h3>
+                    <div>
+                        <h3 id="authModalTitle" class="auth-modal-title">Acceso al Sistema</h3>
+                        <p class="auth-modal-subtitle">Control predictivo de vencimientos para tu comercio</p>
+                    </div>
                 </div>
-                <button class="modal-close-btn" onclick="App.closeAuthModal()">&times;</button>
+                <button type="button" class="auth-modal-close" onclick="App.closeAuthModal()" aria-label="Cerrar ventana">&times;</button>
             </div>
 
-            <div class="modal-body">
-                <!-- Pestañas Auth -->
-                <div class="auth-tabs">
-                    <button id="tabBtnLogin" class="auth-tab-btn active" onclick="App.switchAuthTab('login')">
-                        Iniciar Sesión
+            <div class="auth-modal-body">
+                <!-- Selector de Pestañas Tipo Segmented Control Dinámico -->
+                <div class="auth-segmented-tabs">
+                    <button type="button" id="tabBtnLogin" class="auth-tab-pill active" onclick="App.switchAuthTab('login')">
+                        <i class="fas fa-sign-in-alt"></i>
+                        <span>Iniciar Sesión</span>
                     </button>
-                    <button id="tabBtnRegister" class="auth-tab-btn" onclick="App.switchAuthTab('register')">
-                        Crear Cuenta
+                    <button type="button" id="tabBtnRegister" class="auth-tab-pill" onclick="App.switchAuthTab('register')">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Crear Cuenta</span>
                     </button>
                 </div>
 
                 <!-- Formulario Iniciar Sesión -->
-                <form id="formLogin">
-                    <div class="form-group">
-                        <label class="form-label">Usuario o Correo:</label>
-                        <input type="text" name="usuario" class="form-control" placeholder="admin o tu usuario" required>
+                <form id="formLogin" class="auth-form-animated">
+                    <div class="auth-form-field">
+                        <label class="auth-field-label" for="loginUsuario">
+                            <i class="fas fa-user-circle"></i> Usuario o Correo:
+                        </label>
+                        <div class="auth-input-group">
+                            <i class="fas fa-user auth-field-icon"></i>
+                            <input type="text" name="usuario" id="loginUsuario" class="auth-input-control" placeholder="admin o tu usuario" autocomplete="username" required>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Contraseña:</label>
-                        <input type="password" name="password" class="form-control" placeholder="••••••••" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 12px;">
-                        <i class="fas fa-sign-in-alt"></i> Ingresar al Semáforo
-                    </button>
 
-                    <!-- Accesos Rápidos Demo (1 Clic) -->
-                    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color); text-align: center;">
-                        <span style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-bottom: 10px;">
-                            Cuentas Demo Preconfiguradas (1 Clic):
-                        </span>
-                        <div style="display: flex; gap: 8px;">
-                            <button type="button" class="btn btn-secondary btn-sm" style="flex: 1;" onclick="App.loginAsDemo('admin')">
-                                <i class="fas fa-crown" style="color: #fbbf24;"></i> Dueño / Admin
-                            </button>
-                            <button type="button" class="btn btn-secondary btn-sm" style="flex: 1;" onclick="App.loginAsDemo('empleado')">
-                                <i class="fas fa-user"></i> Cajero / Empleado
+                    <div class="auth-form-field">
+                        <label class="auth-field-label" for="loginPassword">
+                            <i class="fas fa-lock"></i> Contraseña:
+                        </label>
+                        <div class="auth-input-group">
+                            <i class="fas fa-key auth-field-icon"></i>
+                            <input type="password" name="password" id="loginPassword" class="auth-input-control" placeholder="••••••••" autocomplete="current-password" required>
+                            <button type="button" class="auth-eye-btn" onclick="App.togglePasswordVisibility('loginPassword', 'eyeIconLogin')" title="Ver u ocultar contraseña">
+                                <i id="eyeIconLogin" class="fas fa-eye"></i>
                             </button>
                         </div>
+                    </div>
+
+                    <!-- Botón Principal Dinámico -->
+                    <button type="submit" class="btn-auth-primary-action">
+                        <span>Ingresar al Semáforo</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+
+                    <!-- Separador Elegante -->
+                    <div class="auth-or-separator">
+                        <span>o ingresá al instante en modo prueba</span>
+                    </div>
+
+                    <!-- Cuentas Demo Preconfiguradas (1 Clic) Rediseñadas como Tarjetas Interactivas -->
+                    <div class="auth-demo-grid">
+                        <button type="button" class="auth-demo-card demo-card-admin" onclick="App.loginAsDemo('admin')" title="Entrar como Dueño / Administrador con 1 Clic">
+                            <div class="demo-card-top">
+                                <span class="demo-card-icon crown-icon"><i class="fas fa-crown"></i></span>
+                                <span class="demo-card-badge badge-admin">Acceso Total</span>
+                            </div>
+                            <strong class="demo-card-title">Dueño / Admin</strong>
+                            <span class="demo-card-desc">PIN maestro y semáforo full</span>
+                        </button>
+
+                        <button type="button" class="auth-demo-card demo-card-empleado" onclick="App.loginAsDemo('empleado')" title="Entrar como Cajero / Empleado con 1 Clic">
+                            <div class="demo-card-top">
+                                <span class="demo-card-icon user-icon"><i class="fas fa-user-tag"></i></span>
+                                <span class="demo-card-badge badge-empleado">Operativo</span>
+                            </div>
+                            <strong class="demo-card-title">Cajero / Empleado</strong>
+                            <span class="demo-card-desc">Carga express y alertas</span>
+                        </button>
                     </div>
                 </form>
 
                 <!-- Formulario Crear Nueva Cuenta -->
-                <form id="formRegister" class="hidden">
-                    <div class="form-group">
-                        <label class="form-label">Tu Nombre Completo:</label>
-                        <input type="text" name="nombre" class="form-control" placeholder="Ej: Juan Pérez" required>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Usuario:</label>
-                            <input type="text" name="usuario" class="form-control" placeholder="juanperez" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Email:</label>
-                            <input type="email" name="email" class="form-control" placeholder="correo@ejemplo.com">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Nombre de tu Despensa / Minimarket:</label>
-                        <input type="text" name="nombre_negocio" class="form-control" placeholder="Ej: Despensa Don Juan" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Contraseña:</label>
-                        <input type="password" name="password" class="form-control" placeholder="Mínimo 6 caracteres" required>
-                    </div>
-                    <div class="form-group" style="background: rgba(99, 102, 241, 0.1); padding: 12px; border-radius: var(--radius-md); border: 1px solid rgba(99, 102, 241, 0.2);">
-                        <label class="form-label" style="color: #c7d2fe;">
-                            <i class="fas fa-key"></i> Definir PIN de Administrador (4 dígitos):
+                <form id="formRegister" class="auth-form-animated hidden">
+                    <div class="auth-form-field">
+                        <label class="auth-field-label">
+                            <i class="fas fa-id-card"></i> Tu Nombre Completo:
                         </label>
-                        <input type="password" name="admin_pin" maxlength="6" class="form-control" placeholder="Ej: 1234" required pattern="\d{4,6}" inputmode="numeric">
-                        <small style="font-size: 0.72rem; color: #a5b4fc; display: block; margin-top: 4px;">
-                            Este PIN protegerá las acciones críticas (borrado de mercadería y cambios de fechas).
-                        </small>
+                        <div class="auth-input-group">
+                            <i class="fas fa-user auth-field-icon"></i>
+                            <input type="text" name="nombre" class="auth-input-control" placeholder="Ej: Juan Pérez" required>
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 12px;">
-                        <i class="fas fa-check-circle"></i> Crear Cuenta y Empezar
+
+                    <div class="auth-fields-row">
+                        <div class="auth-form-field">
+                            <label class="auth-field-label">
+                                <i class="fas fa-at"></i> Usuario:
+                            </label>
+                            <div class="auth-input-group">
+                                <i class="fas fa-user-tag auth-field-icon"></i>
+                                <input type="text" name="usuario" class="auth-input-control" placeholder="juanperez" required>
+                            </div>
+                        </div>
+
+                        <div class="auth-form-field">
+                            <label class="auth-field-label">
+                                <i class="fas fa-envelope"></i> Email:
+                            </label>
+                            <div class="auth-input-group">
+                                <i class="fas fa-paper-plane auth-field-icon"></i>
+                                <input type="email" name="email" class="auth-input-control" placeholder="correo@ejemplo.com">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="auth-form-field">
+                        <label class="auth-field-label">
+                            <i class="fas fa-store"></i> Nombre de tu Despensa / Minimarket:
+                        </label>
+                        <div class="auth-input-group">
+                            <i class="fas fa-shop auth-field-icon"></i>
+                            <input type="text" name="nombre_negocio" class="auth-input-control" placeholder="Ej: Despensa Don Juan" required>
+                        </div>
+                    </div>
+
+                    <div class="auth-form-field">
+                        <label class="auth-field-label">
+                            <i class="fas fa-lock"></i> Contraseña:
+                        </label>
+                        <div class="auth-input-group">
+                            <i class="fas fa-key auth-field-icon"></i>
+                            <input type="password" name="password" id="registerPassword" class="auth-input-control" placeholder="Mínimo 6 caracteres" required>
+                            <button type="button" class="auth-eye-btn" onclick="App.togglePasswordVisibility('registerPassword', 'eyeIconRegister')" title="Ver u ocultar contraseña">
+                                <i id="eyeIconRegister" class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Caja Destacada de PIN de Administrador (Seguridad Comercial) -->
+                    <div class="auth-pin-security-box">
+                        <div class="auth-pin-header">
+                            <div class="auth-pin-badge-icon">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <div>
+                                <label class="auth-pin-label">Definir PIN de Administrador (4 a 6 dígitos):</label>
+                                <span class="auth-pin-hint">Protege acciones críticas como borrado y cambios de fecha</span>
+                            </div>
+                        </div>
+                        <div class="auth-input-group" style="margin-top: 8px;">
+                            <i class="fas fa-lock auth-field-icon"></i>
+                            <input type="password" name="admin_pin" maxlength="6" class="auth-input-control auth-pin-input" placeholder="Ej: 1234" required pattern="\d{4,6}" inputmode="numeric">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-auth-primary-action btn-register-action">
+                        <i class="fas fa-rocket"></i>
+                        <span>Crear Cuenta y Empezar Gratis</span>
                     </button>
                 </form>
             </div>

@@ -146,15 +146,15 @@ body {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .icon-bell-btn {
   background: rgba(255, 255, 255, 0.15);
   border: none;
   color: #ffffff;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -166,12 +166,13 @@ body {
 
 .icon-bell-btn:hover {
   background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
 }
 
 .bell-badge-dot {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 7px;
+  right: 7px;
   width: 9px;
   height: 9px;
   background: #ef4444;
@@ -179,20 +180,124 @@ body {
   border-radius: 50%;
 }
 
+/* Badge de Usuario Activo */
+.header-user-profile {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  padding: 4px 14px 4px 5px;
+  border-radius: 40px;
+  backdrop-filter: blur(8px);
+  transition: var(--transition);
+}
+
+.header-user-profile:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
 .user-avatar-circle {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
   background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   color: #1565c0;
   cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.user-avatar-circle:hover {
+  transform: scale(1.05);
+}
+
+.header-user-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.header-user-name {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-user-role {
+  font-size: 0.70rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.header-user-role.role-admin {
+  color: #fde68a;
+}
+
+.header-user-role.role-empleado {
+  color: #bae6fd;
+}
+
+/* Botón Visible para Salir / Cerrar Sesión */
+.btn-header-logout {
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 50px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.btn-header-logout:hover {
+  background: #ef4444;
+  border-color: #dc2626;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+}
+
+.btn-header-logout:hover i {
+  transform: translateX(2px);
+}
+
+.btn-header-logout i {
+  transition: transform 0.2s ease;
+  font-size: 0.92rem;
+}
+
+@media (max-width: 640px) {
+  .header-user-meta {
+    display: none;
+  }
+  .header-user-profile {
+    padding: 3px;
+    background: transparent;
+    border: none;
+  }
+  .btn-header-logout {
+    padding: 7px 12px;
+    font-size: 0.8rem;
+  }
 }
 
 /* ==============================================================================
@@ -3964,6 +4069,683 @@ body {
   font-size: 0.86rem;
   color: var(--landing-text-body);
   line-height: 1.6;
+}
+
+/* ==============================================================================
+   19. SISTEMA DE MODALES Y PANTALLA DE ACCESO DINÁMICA & PROFESIONAL
+   ============================================================================== */
+
+/* Overlay de Fondos Modales con Desenfoque de Cristal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  overflow-y: auto;
+  animation: authOverlayFade 0.25s ease;
+}
+
+@keyframes authOverlayFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Tarjeta General de Modales */
+.modal-card {
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(226, 232, 240, 0.9);
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  animation: authModalPop 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border-radius: 20px 20px 0 0;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-close-btn {
+  background: #f1f5f9;
+  border: none;
+  color: #64748b;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.modal-close-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  transform: rotate(90deg);
+}
+
+/* ==============================================================================
+   20. TARJETA Y FORMULARIOS DE AUTENTICACIÓN (#authModal)
+   ============================================================================== */
+
+.auth-modal-card {
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 25px 65px -12px rgba(15, 23, 42, 0.38), 0 0 0 1px rgba(226, 232, 240, 0.95);
+  width: 100%;
+  max-width: 450px;
+  overflow: hidden;
+  position: relative;
+  animation: authModalPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes authModalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.93) translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Cabecera Dinámica con Halos y Jerarquía */
+.auth-modal-header {
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  border-bottom: 1px solid #edf2f7;
+  padding: 22px 24px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+}
+
+.auth-brand-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.35);
+  flex-shrink: 0;
+}
+
+.auth-modal-title {
+  font-size: 1.22rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.auth-modal-subtitle {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 3px;
+  line-height: 1.3;
+}
+
+.auth-modal-close {
+  background: #f1f5f9;
+  border: none;
+  color: #64748b;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.auth-modal-close:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  transform: rotate(90deg);
+}
+
+.auth-modal-body {
+  padding: 24px;
+}
+
+/* Selector Segmented Control de Tabs */
+.auth-segmented-tabs {
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 22px;
+}
+
+.auth-tab-pill {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  padding: 10px 14px;
+  border-radius: 11px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: inherit;
+}
+
+.auth-tab-pill:hover {
+  color: #0f172a;
+}
+
+.auth-tab-pill.active {
+  background: #ffffff;
+  color: #1d4ed8;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+/* Formulario con Transición */
+.auth-form-animated {
+  animation: authFormFadeIn 0.22s ease-out;
+}
+
+@keyframes authFormFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.auth-form-field {
+  margin-bottom: 16px;
+}
+
+.auth-field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 7px;
+}
+
+.auth-field-label i {
+  color: #0284c7;
+  font-size: 0.82rem;
+}
+
+.auth-input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.auth-field-icon {
+  position: absolute;
+  left: 14px;
+  color: #94a3b8;
+  font-size: 0.95rem;
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
+
+.auth-input-control {
+  width: 100%;
+  padding: 11px 42px 11px 40px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  color: #0f172a;
+  font-family: inherit;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.auth-input-control::placeholder {
+  color: #94a3b8;
+}
+
+.auth-input-control:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+.auth-input-control:focus {
+  background: #ffffff;
+  border-color: #2563eb;
+  outline: none;
+  box-shadow: 0 0 0 3.5px rgba(37, 99, 235, 0.15);
+}
+
+.auth-input-group:focus-within .auth-field-icon {
+  color: #2563eb;
+}
+
+.auth-eye-btn {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  border-radius: 6px;
+  transition: color 0.2s ease;
+}
+
+.auth-eye-btn:hover {
+  color: #334155;
+}
+
+.auth-fields-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Botón Principal Dinámico de Submit */
+.btn-auth-primary-action {
+  width: 100%;
+  margin-top: 10px;
+  padding: 13px 20px;
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 60%, #0284c7 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);
+  font-family: inherit;
+}
+
+.btn-auth-primary-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.45);
+  filter: brightness(1.05);
+}
+
+.btn-auth-primary-action:hover i {
+  transform: translateX(4px);
+}
+
+.btn-auth-primary-action i {
+  transition: transform 0.2s ease;
+}
+
+.btn-auth-primary-action:active {
+  transform: translateY(0);
+}
+
+.btn-register-action {
+  background: linear-gradient(135deg, #059669 0%, #10b981 60%, #06b6d4 100%);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
+}
+
+.btn-register-action:hover {
+  box-shadow: 0 12px 26px rgba(16, 185, 129, 0.45);
+}
+
+/* Separador Elegante */
+.auth-or-separator {
+  margin: 22px 0 16px;
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.73rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.auth-or-separator::before,
+.auth-or-separator::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.auth-or-separator span {
+  padding: 0 12px;
+}
+
+/* Cuentas Demo como Tarjetas Interactivas Dinámicas */
+.auth-demo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.auth-demo-card {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: inherit;
+  position: relative;
+}
+
+.auth-demo-card:hover {
+  transform: translateY(-2px);
+}
+
+.demo-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.demo-card-icon {
+  font-size: 1.15rem;
+}
+
+.demo-card-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.demo-card-title {
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.demo-card-desc {
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.25;
+}
+
+/* Demo Admin Card */
+.demo-card-admin {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #92400e;
+}
+
+.demo-card-admin:hover {
+  border-color: #f59e0b;
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.25);
+}
+
+.crown-icon {
+  color: #d97706;
+}
+
+.badge-admin {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+/* Demo Empleado Card */
+.demo-card-empleado {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-color: rgba(2, 132, 199, 0.35);
+  color: #0369a1;
+}
+
+.demo-card-empleado:hover {
+  border-color: #0284c7;
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.25);
+}
+
+.user-icon {
+  color: #0284c7;
+}
+
+.badge-empleado {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid rgba(2, 132, 199, 0.4);
+}
+
+/* Caja de Seguridad PIN */
+.auth-pin-security-box {
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-left: 4px solid #1d4ed8;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.auth-pin-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.auth-pin-badge-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.88rem;
+  flex-shrink: 0;
+}
+
+.auth-pin-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+  display: block;
+}
+
+.auth-pin-hint {
+  font-size: 0.72rem;
+  color: #64748b;
+  display: block;
+  margin-top: 2px;
+}
+
+.auth-pin-input {
+  letter-spacing: 0.25em;
+  font-weight: 700;
+}
+
+/* ==============================================================================
+   21. COMPONENTES Y CONTROLES GENERALES DE FORMULARIOS & BOTONES
+   ============================================================================== */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.form-control {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #0f172a;
+  background: #ffffff;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.form-control:focus {
+  border-color: #2563eb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: #1d4ed8;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.btn-secondary {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+
+/* Keypad de PIN Maestro */
+.pin-display-wrapper {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin: 16px 0 8px;
+}
+
+.pin-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #cbd5e1;
+  background: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.pin-dot.filled {
+  background: #2563eb;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+}
+
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+.keypad-btn {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.keypad-btn:hover {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.keypad-btn:active {
+  transform: translateY(1px);
+  background: #cbd5e1;
+}
+
+.keypad-btn.action {
+  font-size: 1.1rem;
+  color: #64748b;
 }
 
 
