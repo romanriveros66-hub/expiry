@@ -33,9 +33,9 @@ class Database {
                 $dbParts = parse_url($databaseUrl);
                 $host    = $dbParts['host'] ?? 'db.dmmlhspmtumzoiudffsf.supabase.co';
                 $port    = $dbParts['port'] ?? 5432;
-                $dbname  = ltrim($dbParts['path'] ?? 'postgres', '/');
+                $dbname  = rtrim(ltrim($dbParts['path'] ?? 'postgres', '/'), '.');
                 $user    = isset($dbParts['user']) ? urldecode($dbParts['user']) : 'postgres';
-                $pass    = isset($dbParts['pass']) ? urldecode($dbParts['pass']) : '';
+                $pass    = isset($dbParts['pass']) ? trim(urldecode($dbParts['pass']), '[]') : '';
 
                 $dsn = "pgsql:host={$host};port={$port};dbname={$dbname};sslmode=require";
                 $options = [
