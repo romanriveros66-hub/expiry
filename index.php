@@ -5,22 +5,33 @@
  * Seguridad: OWASP Top 10 / VulnScope Compliance
  */
 require_once __DIR__ . '/api/security_helper.php';
+
+// Asegurar cabeceras de Referrer-Policy en respuestas directas
+if (!headers_sent()) {
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+}
+
+// Calcular hash SHA-384 dinámico para Subresource Integrity (SRI) del script de la aplicación
+$appJsPath = __DIR__ . '/js/app.js';
+$appJsHash = file_exists($appJsPath) ? 'sha384-' . base64_encode(hash('sha384', file_get_contents($appJsPath), true)) : '';
+$appJsVer  = file_exists($appJsPath) ? filemtime($appJsPath) : time();
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <title>Expiry — El Semáforo de Vencimientos para Despensas y Minimarkets</title>
     <meta name="description" content="Evitá pérdidas tirando mercadería: el semáforo inteligente de vencimientos para tu negocio. Carga rápida de lotes y seguridad blindada con PIN de Administrador.">
     
     <!-- Fuentes Google: Plus Jakarta Sans -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" crossorigin="anonymous">
     
-    <!-- Iconografía FontAwesome 6 (CDN Seguro) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- Iconografía FontAwesome 6 (CDN Seguro con SRI) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA==" crossorigin="anonymous">
     
     <!-- Estilos de la Aplicación -->
     <link rel="stylesheet" href="css/styles.css?v=<?= time() ?>">
@@ -1952,7 +1963,7 @@ require_once __DIR__ . '/api/security_helper.php';
     <!-- Contenedor de Alertas Toast -->
     <div id="toastContainer" class="toast-container"></div>
 
-    <!-- Script Principal de la Aplicación -->
-    <script src="js/app.js?v=<?= time() ?>"></script>
+    <!-- Script Principal de la Aplicación con Subresource Integrity (SRI) -->
+    <script src="js/app.js?v=<?= $appJsVer ?>" <?= !empty($appJsHash) ? 'integrity="' . $appJsHash . '" crossorigin="anonymous"' : '' ?>></script>
 </body>
 </html>
