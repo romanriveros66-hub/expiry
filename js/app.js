@@ -1785,4 +1785,64 @@ const App = (() => {
   };
 })();
 
+// Inicialización de la aplicación
 document.addEventListener('DOMContentLoaded', App.init);
+
+// Delegador seguro universal de eventos para cumplimiento estricto de Content Security Policy (sin 'unsafe-inline')
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[onclick]');
+  if (!el) return;
+  const code = el.getAttribute('onclick');
+  if (!code) return;
+
+  // 1. Despacho dinámico de métodos App.metodo(args)
+  const appMatch = code.match(/^App\.([a-zA-Z0-9_]+)\((.*)\)$/);
+  if (appMatch) {
+    const fn = appMatch[1];
+    const rawArgs = appMatch[2].trim();
+    let args = [];
+    if (rawArgs.length > 0) {
+      args = rawArgs.split(',').map(a => {
+        a = a.trim();
+        if ((a.startsWith("'") && a.endsWith("'")) || (a.startsWith('"') && a.endsWith('"'))) {
+          return a.slice(1, -1);
+        }
+        if (a === 'true') return true;
+        if (a === 'false') return false;
+        if (!isNaN(Number(a))) return Number(a);
+        return a;
+      });
+    }
+    if (typeof App !== 'undefined' && typeof App[fn] === 'function') {
+      e.preventDefault();
+      App[fn].apply(App, args);
+      return;
+    }
+  }
+
+  // 2. Colapsar/expandir FAQ (this.classList.toggle('open'))
+  if (code.includes("classList.toggle('open')")) {
+    el.classList.toggle('open');
+    return;
+  }
+
+  // 3. Recarga segura de página (location.reload())
+  if (code.includes("location.reload()")) {
+    e.preventDefault();
+    location.reload();
+    return;
+  }
+
+  // 4. Enfoque de formulario rápido
+  if (code.includes("quickNombre")) {
+    document.getElementById('quickNombre')?.focus();
+    return;
+  }
+
+  // 5. Clicks en tabs semáforo
+  const tabMatch = code.match(/querySelector\('([^']+)'\)\?\.click\(\)/);
+  if (tabMatch) {
+    document.querySelector(tabMatch[1])?.click();
+    return;
+  }
+}, false);

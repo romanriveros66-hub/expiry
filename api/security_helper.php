@@ -12,11 +12,46 @@ if (!ob_get_level()) {
 
 require_once __DIR__ . '/../db.php';
 
+// Función universal para detectar HTTPS (conexiones directas o proxies como Vercel/Cloudflare)
+function isHttpsRequest(): bool {
+    if (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') {
+        return true;
+    }
+    if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
+        return true;
+    }
+    if (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on') {
+        return true;
+    }
+    if (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443) {
+        return true;
+    }
+    if (isset($_SERVER['HTTP_X_FORWARDED_PORT']) && (int)$_SERVER['HTTP_X_FORWARDED_PORT'] === 443) {
+        return true;
+    }
+    // Entornos de despliegue en la nube (Vercel, Railway, Render)
+    if (getenv('VERCEL') !== false || getenv('VERCEL_ENV') !== false) {
+        return true;
+    }
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    if (!empty($host) && !in_array($host, ['localhost', '127.0.0.1', '::1']) && !str_starts_with($host, 'localhost:')) {
+        return true;
+    }
+    return false;
+}
+
 // 1. Configuración de Cookies Seguras (Cookies & CORS)
 if (session_status() === PHP_SESSION_NONE) {
-    $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
-    
-    // PHP 7.2 compatible session cookie parameters
+    $isSecure = isHttpsRequest();
+
+    ini_set('session.use_only_cookies', '1');
+    ini_set('session.use_trans_sid', '0');
+    ini_set('session.cookie_httponly', '1');
+    ini_set('session.cookie_samesite', 'Strict');
+    if ($isSecure) {
+        ini_set('session.cookie_secure', '1');
+    }
+
     if (PHP_VERSION_ID >= 70300) {
         session_set_cookie_params([
             'lifetime' => 0,
@@ -30,8 +65,6 @@ if (session_status() === PHP_SESSION_NONE) {
         session_set_cookie_params(0, '/; samesite=Strict', '', $isSecure, true);
     }
 
-    ini_set('session.use_only_cookies', 1);
-    ini_set('session.use_trans_sid', 0);
     session_start();
 }
 
@@ -42,10 +75,10 @@ function sendSecurityHeaders() {
         header('X-Frame-Options: SAMEORIGIN');
         header('X-XSS-Protection: 1; mode=block');
         header('Referrer-Policy: strict-origin-when-cross-origin');
-        header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';");
+        header("Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';");
         header("Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=()");
 
-        if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        if (isHttpsRequest()) {
             header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
         }
     }
@@ -59,9 +92,7 @@ function getAuthSecretKey(): string {
 }
 
 function setSignedAuthCookie(array $user): void {
-    $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
-        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+    $isSecure = isHttpsRequest();
 
     $csrfToken = getCsrfToken();
     $payload = [
@@ -90,17 +121,18 @@ function setSignedAuthCookie(array $user): void {
 }
 
 function clearSignedAuthCookie(): void {
+    $isSecure = isHttpsRequest();
     if (PHP_VERSION_ID >= 70300) {
         setcookie('expiry_auth_token', '', [
             'expires'  => time() - 3600,
             'path'     => '/',
             'domain'   => '',
-            'secure'   => false,
+            'secure'   => $isSecure,
             'httponly' => true,
             'samesite' => 'Lax'
         ]);
     } else {
-        setcookie('expiry_auth_token', '', time() - 3600, '/; samesite=Lax', '', false, true);
+        setcookie('expiry_auth_token', '', time() - 3600, '/; samesite=Lax', '', $isSecure, true);
     }
     unset($_COOKIE['expiry_auth_token']);
 }
