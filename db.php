@@ -21,11 +21,17 @@ class Database {
 
     public static function getConnection(): PDO {
         if (self::$instance === null) {
+            $host   = getenv('DB_HOST') ?: (getenv('MYSQLHOST') ?: self::DB_HOST);
+            $port   = getenv('DB_PORT') ?: (getenv('MYSQLPORT') ?: self::DB_PORT);
+            $dbname = getenv('DB_NAME') ?: (getenv('MYSQLDATABASE') ?: self::DB_NAME);
+            $user   = getenv('DB_USER') ?: (getenv('MYSQLUSER') ?: self::DB_USER);
+            $pass   = getenv('DB_PASS') !== false ? getenv('DB_PASS') : (getenv('MYSQLPASSWORD') !== false ? getenv('MYSQLPASSWORD') : self::DB_PASS);
+
             $dsn = sprintf(
                 'mysql:host=%s;port=%s;dbname=%s;charset=%s',
-                self::DB_HOST,
-                self::DB_PORT,
-                self::DB_NAME,
+                $host,
+                $port,
+                $dbname,
                 self::DB_CHARSET
             );
 
@@ -37,7 +43,7 @@ class Database {
             ];
 
             try {
-                self::$instance = new PDO($dsn, self::DB_USER, self::DB_PASS, $options);
+                self::$instance = new PDO($dsn, $user, $pass, $options);
             } catch (PDOException $e) {
                 // Registro seguro de error sin revelar credenciales en pantalla
                 error_log("Database Connection Error: " . $e->getMessage());
