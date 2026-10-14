@@ -47,8 +47,93 @@ function sendSecurityHeaders() {
 
 sendSecurityHeaders();
 
-// 3. Manejo de CSRF Token
+// 3. Clave Secreta y Token Criptográfico de Sesión para Entornos Serverless
+function getAuthSecretKey(): string {
+    return hash('sha256', getenv('DATABASE_URL') ?: (getenv('SUPABASE_DB_URL') ?: 'expiry_secure_salt_key_2026_minimarket'));
+}
+
+function setSignedAuthCookie(array $user): void {
+    $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
+        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
+    $csrfToken = getCsrfToken();
+    $payload = [
+        'user'       => $user,
+        'csrf_token' => $csrfToken,
+        'exp'        => time() + (86400 * 30) // 30 días
+    ];
+    $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+    $b64 = rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
+    $sig = hash_hmac('sha256', $b64, getAuthSecretKey());
+    $token = $b64 . '.' . $sig;
+
+    if (PHP_VERSION_ID >= 70300) {
+        setcookie('expiry_auth_token', $token, [
+            'expires'  => time() + (86400 * 30),
+            'path'     => '/',
+            'domain'   => '',
+            'secure'   => $isSecure,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+    } else {
+        setcookie('expiry_auth_token', $token, time() + (86400 * 30), '/; samesite=Lax', '', $isSecure, true);
+    }
+    $_COOKIE['expiry_auth_token'] = $token;
+}
+
+function clearSignedAuthCookie(): void {
+    if (PHP_VERSION_ID >= 70300) {
+        setcookie('expiry_auth_token', '', [
+            'expires'  => time() - 3600,
+            'path'     => '/',
+            'domain'   => '',
+            'secure'   => false,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+    } else {
+        setcookie('expiry_auth_token', '', time() - 3600, '/; samesite=Lax', '', false, true);
+    }
+    unset($_COOKIE['expiry_auth_token']);
+}
+
+function loadSignedAuthCookie(): ?array {
+    $token = $_COOKIE['expiry_auth_token'] ?? '';
+    if (empty($token) || strpos($token, '.') === false) {
+        return null;
+    }
+
+    list($b64, $sig) = explode('.', $token, 2);
+    $expectedSig = hash_hmac('sha256', $b64, getAuthSecretKey());
+    if (!hash_equals($expectedSig, $sig)) {
+        return null;
+    }
+
+    $json = base64_decode(strtr($b64, '-_', '+/'));
+    $payload = json_decode($json, true);
+    if (!is_array($payload) || empty($payload['user']) || empty($payload['exp'])) {
+        return null;
+    }
+
+    if ($payload['exp'] < time()) {
+        return null;
+    }
+
+    $_SESSION['user'] = $payload['user'];
+    if (!empty($payload['csrf_token'])) {
+        $_SESSION['csrf_token'] = $payload['csrf_token'];
+    }
+
+    return $payload['user'];
+}
+
+// 4. Manejo de CSRF Token
 function getCsrfToken(): string {
+    if (empty($_SESSION['csrf_token'])) {
+        loadSignedAuthCookie();
+    }
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
@@ -56,13 +141,16 @@ function getCsrfToken(): string {
 }
 
 function validateCsrfToken(?string $token): bool {
+    if (empty($_SESSION['csrf_token'])) {
+        loadSignedAuthCookie();
+    }
     if (empty($_SESSION['csrf_token']) || empty($token)) {
         return false;
     }
     return hash_equals($_SESSION['csrf_token'], $token);
 }
 
-// 4. Salida Segura JSON
+// 5. Salida Segura JSON
 function jsonResponse($data, int $statusCode = 200) {
     if (ob_get_length()) {
         ob_clean();
@@ -73,9 +161,12 @@ function jsonResponse($data, int $statusCode = 200) {
     exit;
 }
 
-// 5. Autenticación y Sesión de Usuario
+// 6. Autenticación y Sesión de Usuario
 function getAuthUser(): ?array {
-    return $_SESSION['user'] ?? null;
+    if (!empty($_SESSION['user'])) {
+        return $_SESSION['user'];
+    }
+    return loadSignedAuthCookie();
 }
 
 function requireAuth(): array {

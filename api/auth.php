@@ -59,6 +59,7 @@ switch ($action) {
             'email' => $user['email'],
             'rol' => $user['rol']
         ];
+        setSignedAuthCookie($_SESSION['user']);
 
         jsonResponse([
             'status' => 'success',
@@ -148,6 +149,7 @@ switch ($action) {
                 'email' => $email,
                 'rol' => 'admin'
             ];
+            setSignedAuthCookie($_SESSION['user']);
 
             jsonResponse([
                 'status' => 'success',
@@ -181,6 +183,7 @@ switch ($action) {
                 'email' => $user['email'],
                 'rol' => $user['rol']
             ];
+            setSignedAuthCookie($_SESSION['user']);
 
             jsonResponse([
                 'status' => 'success',
@@ -195,6 +198,7 @@ switch ($action) {
 
     case 'logout':
         $_SESSION = [];
+        clearSignedAuthCookie();
         if (ini_get("session.use_cookies")) {
             $params = session_get_cookie_params();
             setcookie(session_name(), '', time() - 42000,

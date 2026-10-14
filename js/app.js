@@ -45,7 +45,7 @@ const App = (() => {
 
       if (!response.ok && data && data.code === 'UNAUTHORIZED') {
         state.user = null;
-        updateUI();
+        showLandingView();
         showToast('Sesión finalizada. Inicie sesión nuevamente.', 'error');
         throw new Error(data.message || 'No autorizado');
       }
