@@ -731,14 +731,79 @@ $appJsVer  = file_exists($appJsPath) ? filemtime($appJsPath) : time();
                     <span class="bell-badge-dot"></span>
                 </button>
 
-                <!-- Perfil de Usuario con Avatar, Nombre y Rol -->
-                <div class="header-user-profile" id="headerUserProfile">
-                    <div class="user-avatar-circle" id="appUserAvatar" title="Usuario Autenticado">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <div class="header-user-meta">
-                        <span class="header-user-name" id="appUserName">Administrador</span>
-                        <span class="header-user-role role-admin" id="appRoleBadge">Dueño / Admin</span>
+                <!-- Perfil de Usuario con Menú Desplegable Interactivo -->
+                <div class="user-dropdown-wrapper" id="userDropdownWrapper">
+                    <button type="button" class="header-user-profile" id="headerUserProfile" onclick="App.toggleUserDropdown()" aria-expanded="false" aria-haspopup="true" title="Opciones de perfil y cargo">
+                        <div class="user-avatar-circle" id="appUserAvatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="header-user-meta">
+                            <span class="header-user-name" id="appUserName">Administrador</span>
+                            <span class="header-user-role role-admin" id="appRoleBadge">Dueño / Admin</span>
+                        </div>
+                        <i class="fas fa-chevron-down user-dropdown-caret" id="userDropdownCaret"></i>
+                    </button>
+
+                    <!-- Menú Desplegable Flotante Moderno -->
+                    <div class="user-dropdown-menu hidden" id="userDropdownMenu">
+                        <div class="dropdown-header-info">
+                            <div class="dropdown-user-details">
+                                <strong class="dropdown-user-fullname" id="dropdownUserName">Administrador</strong>
+                                <span class="dropdown-user-role-tag role-admin" id="dropdownRoleTag">Dueño / Admin</span>
+                            </div>
+                            <span class="dropdown-session-status"><i class="fas fa-check-circle text-green"></i> Sesión activa</span>
+                        </div>
+
+                        <div class="dropdown-divider"></div>
+
+                        <!-- Opción Destacada: Cambiar de Cargo / Rol -->
+                        <button type="button" class="dropdown-item-action item-highlight-role" onclick="App.openSwitchRoleModal()">
+                            <div class="dropdown-item-icon icon-swap">
+                                <i class="fas fa-user-shield"></i>
+                            </div>
+                            <div class="dropdown-item-text">
+                                <span class="dropdown-item-title">Cambiar de Cargo</span>
+                                <span class="dropdown-item-subtitle" id="dropdownSwitchSubtitle">Alternar a Cajero / Empleado</span>
+                            </div>
+                            <span class="dropdown-badge-pill">Cambiar</span>
+                        </button>
+
+                        <div class="dropdown-divider"></div>
+
+                        <!-- Opción 2: Auditoría y Seguridad PIN -->
+                        <button type="button" class="dropdown-item-action" onclick="App.openVulnScopeModal(); App.closeUserDropdown();">
+                            <div class="dropdown-item-icon">
+                                <i class="fas fa-shield-halved text-blue"></i>
+                            </div>
+                            <div class="dropdown-item-text">
+                                <span class="dropdown-item-title">Auditoría & PIN</span>
+                                <span class="dropdown-item-subtitle">Registros inmutables de seguridad</span>
+                            </div>
+                        </button>
+
+                        <!-- Opción 3: Reportes por Correo -->
+                        <button type="button" class="dropdown-item-action" onclick="App.openNotificacionesModal(); App.closeUserDropdown();">
+                            <div class="dropdown-item-icon">
+                                <i class="fas fa-envelope-open-text text-amber"></i>
+                            </div>
+                            <div class="dropdown-item-text">
+                                <span class="dropdown-item-title">Reportes por Email</span>
+                                <span class="dropdown-item-subtitle">Alertas automáticas del semáforo</span>
+                            </div>
+                        </button>
+
+                        <div class="dropdown-divider"></div>
+
+                        <!-- Opción 4: Cerrar Sesión Segura -->
+                        <button type="button" class="dropdown-item-action text-danger" onclick="App.logout()">
+                            <div class="dropdown-item-icon icon-danger">
+                                <i class="fas fa-sign-out-alt"></i>
+                            </div>
+                            <div class="dropdown-item-text">
+                                <span class="dropdown-item-title">Cerrar Sesión</span>
+                                <span class="dropdown-item-subtitle">Finalizar sesión en este equipo</span>
+                            </div>
+                        </button>
                     </div>
                 </div>
 
@@ -1172,6 +1237,86 @@ $appJsVer  = file_exists($appJsPath) ? filemtime($appJsPath) : time();
                         <i class="fas fa-rocket"></i>
                         <span>Crear Cuenta y Empezar Gratis</span>
                     </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Cambiar de Cargo Operativo con Verificación de Contraseña -->
+    <div id="switchRoleModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="switchRoleModalTitle">
+        <div class="auth-modal-card switch-role-card">
+            <div class="auth-modal-header">
+                <div class="auth-brand-wrapper">
+                    <div class="auth-icon-badge icon-badge-purple">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <div>
+                        <h3 id="switchRoleModalTitle" class="auth-modal-title">Cambiar de Cargo</h3>
+                        <p class="auth-modal-subtitle">Modificá tu perfil operativo y permisos en el sistema</p>
+                    </div>
+                </div>
+                <button type="button" class="auth-modal-close" onclick="App.closeSwitchRoleModal()" aria-label="Cerrar modal">&times;</button>
+            </div>
+
+            <div class="auth-modal-body">
+                <form id="formSwitchRole" onsubmit="App.handleSwitchRoleSubmit(event)" class="auth-form-animated">
+                    <!-- Selector Visual del Nuevo Cargo -->
+                    <div class="switch-role-selector-wrap">
+                        <span class="auth-field-label">Seleccioná el nuevo cargo a activar:</span>
+                        <div class="role-cards-selection">
+                            <label class="role-select-box" id="roleBoxAdmin" onclick="App.selectRoleOption('admin')">
+                                <input type="radio" name="nuevo_rol" value="admin" id="radioRoleAdmin" class="role-radio-hidden">
+                                <div class="role-box-content">
+                                    <div class="role-box-top">
+                                        <i class="fas fa-crown text-amber"></i>
+                                        <span class="role-pill-tag tag-admin">Acceso Total</span>
+                                    </div>
+                                    <strong class="role-box-name">Dueño / Admin</strong>
+                                    <span class="role-box-desc">Control de mermas, auditoría, PIN y reportes</span>
+                                </div>
+                            </label>
+
+                            <label class="role-select-box" id="roleBoxEmpleado" onclick="App.selectRoleOption('empleado')">
+                                <input type="radio" name="nuevo_rol" value="empleado" id="radioRoleEmpleado" class="role-radio-hidden">
+                                <div class="role-box-content">
+                                    <div class="role-box-top">
+                                        <i class="fas fa-user-tag text-blue"></i>
+                                        <span class="role-pill-tag tag-empleado">Operativo</span>
+                                    </div>
+                                    <strong class="role-box-name">Cajero / Empleado</strong>
+                                    <span class="role-box-desc">Carga rápida de mercadería y semáforo diario</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Validación de Seguridad: Contraseña o PIN -->
+                    <div class="auth-form-field" style="margin-top: 18px;">
+                        <label class="auth-field-label" for="switchRolePassword">
+                            <i class="fas fa-lock"></i> Contraseña o PIN de Seguridad:
+                        </label>
+                        <div class="auth-input-group">
+                            <i class="fas fa-key auth-field-icon"></i>
+                            <input type="password" name="password" id="switchRolePassword" class="auth-input-control" placeholder="Ingresá tu contraseña o PIN maestro" autocomplete="current-password" required>
+                            <button type="button" class="auth-eye-btn" onclick="App.togglePasswordVisibility('switchRolePassword', 'eyeIconSwitch')" title="Ver u ocultar contraseña">
+                                <i id="eyeIconSwitch" class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <small class="auth-security-note">
+                            <i class="fas fa-shield-alt text-celeste"></i> Se requiere validar tu contraseña o PIN maestro para autorizar el cambio de cargo.
+                        </small>
+                    </div>
+
+                    <!-- Botones de Acción -->
+                    <div class="modal-actions-row" style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="App.closeSwitchRoleModal()">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn-auth-primary-action" style="flex: 2; margin-top: 0;" id="btnSubmitSwitchRole">
+                            <span>Confirmar Cambio</span>
+                            <i class="fas fa-check-circle"></i>
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>

@@ -162,15 +162,34 @@ const App = (() => {
     const brandName = document.getElementById('appBrandName');
     const userName = document.getElementById('appUserName');
     const roleBadge = document.getElementById('appRoleBadge');
+    const dropName = document.getElementById('dropdownUserName');
+    const dropRoleTag = document.getElementById('dropdownRoleTag');
+    const dropSwitchSub = document.getElementById('dropdownSwitchSubtitle');
 
     if (brandName) brandName.textContent = state.config.nombre_negocio || 'Minimarket & Despensa';
     if (userName && state.user) {
       userName.textContent = state.user.nombre || state.user.usuario || 'Usuario Activo';
     }
-    if (roleBadge && state.user) {
+    if (dropName && state.user) {
+      dropName.textContent = state.user.nombre || state.user.usuario || 'Usuario Activo';
+    }
+
+    if (state.user) {
       const isAdmin = state.user.rol === 'admin';
-      roleBadge.textContent = isAdmin ? 'Dueño / Admin' : 'Cajero / Empleado';
-      roleBadge.className = `header-user-role ${isAdmin ? 'role-admin' : 'role-empleado'}`;
+      const roleText = isAdmin ? 'Dueño / Admin' : 'Cajero / Empleado';
+      const roleClass = isAdmin ? 'role-admin' : 'role-empleado';
+
+      if (roleBadge) {
+        roleBadge.textContent = roleText;
+        roleBadge.className = `header-user-role ${roleClass}`;
+      }
+      if (dropRoleTag) {
+        dropRoleTag.textContent = roleText;
+        dropRoleTag.className = `dropdown-user-role-tag ${roleClass}`;
+      }
+      if (dropSwitchSub) {
+        dropSwitchSub.textContent = isAdmin ? 'Alternar a Cajero / Empleado' : 'Alternar a Dueño / Admin';
+      }
     }
   }
 
@@ -901,11 +920,120 @@ const App = (() => {
     try {
       await safeFetchJson('api/auth.php?action=logout');
     } catch (e) {}
+    closeUserDropdown();
     state.user = null;
     state.authToken = '';
     localStorage.removeItem('expiry_auth_token');
     showToast('Sesión cerrada correctamente.', 'info');
     showLandingView();
+  }
+
+  // 9.B Dropdown de Usuario y Cambio de Cargo
+  function toggleUserDropdown() {
+    const menu = document.getElementById('userDropdownMenu');
+    const caret = document.getElementById('userDropdownCaret');
+    if (!menu) return;
+    const isHidden = menu.classList.contains('hidden');
+    if (isHidden) {
+      renderUserBar();
+      menu.classList.remove('hidden');
+      if (caret) caret.style.transform = 'rotate(180deg)';
+    } else {
+      closeUserDropdown();
+    }
+  }
+
+  function closeUserDropdown() {
+    const menu = document.getElementById('userDropdownMenu');
+    const caret = document.getElementById('userDropdownCaret');
+    if (menu) menu.classList.add('hidden');
+    if (caret) caret.style.transform = 'rotate(0deg)';
+  }
+
+  function openSwitchRoleModal(suggestedRole = null) {
+    closeUserDropdown();
+    const modal = document.getElementById('switchRoleModal');
+    if (!modal) return;
+
+    // Determinar rol contrario al actual si no se pasa explícitamente
+    const currentRole = state.user ? state.user.rol : 'empleado';
+    const target = suggestedRole || (currentRole === 'admin' ? 'empleado' : 'admin');
+    selectRoleOption(target);
+
+    const inputPass = document.getElementById('switchRolePassword');
+    if (inputPass) {
+      inputPass.value = '';
+    }
+
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+      inputPass?.focus();
+    }, 100);
+  }
+
+  function closeSwitchRoleModal() {
+    const modal = document.getElementById('switchRoleModal');
+    if (modal) modal.classList.add('hidden');
+    const form = document.getElementById('formSwitchRole');
+    if (form) form.reset();
+  }
+
+  function selectRoleOption(role) {
+    const radioAdmin = document.getElementById('radioRoleAdmin');
+    const radioEmpleado = document.getElementById('radioRoleEmpleado');
+    const boxAdmin = document.getElementById('roleBoxAdmin');
+    const boxEmpleado = document.getElementById('roleBoxEmpleado');
+
+    if (role === 'admin') {
+      if (radioAdmin) radioAdmin.checked = true;
+      if (boxAdmin) boxAdmin.classList.add('active');
+      if (boxEmpleado) boxEmpleado.classList.remove('active');
+    } else {
+      if (radioEmpleado) radioEmpleado.checked = true;
+      if (boxEmpleado) boxEmpleado.classList.add('active');
+      if (boxAdmin) boxAdmin.classList.remove('active');
+    }
+  }
+
+  async function handleSwitchRoleSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+    const btnSubmit = document.getElementById('btnSubmitSwitchRole');
+    const originalText = btnSubmit ? btnSubmit.innerHTML : '';
+
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando credenciales...';
+    }
+
+    try {
+      const res = await safeFetchJson('api/auth.php?action=switch_role', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (res.status === 'success') {
+        state.user = res.user;
+        if (res.token) {
+          state.authToken = res.token;
+          localStorage.setItem('expiry_auth_token', res.token);
+        }
+        showToast(res.message, 'success');
+        closeSwitchRoleModal();
+        renderUserBar();
+        await reloadDashboard();
+      } else {
+        showToast(res.message || 'Error al cambiar de cargo.', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'No se pudo autorizar el cambio de cargo. Verifique su contraseña o PIN.', 'error');
+    } finally {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = originalText;
+      }
+    }
   }
 
   // 10. Modal de Auditoría de Seguridad & VulnScope Checklist
@@ -1717,6 +1845,14 @@ const App = (() => {
 
     const formRegister = document.getElementById('formRegister');
     if (formRegister) formRegister.addEventListener('submit', handleRegisterSubmit);
+
+    // Formulario de cambio de cargo
+    const formSwitchRole = document.getElementById('formSwitchRole');
+    if (formSwitchRole) formSwitchRole.addEventListener('submit', handleSwitchRoleSubmit);
+
+    // Formulario de edición de vencimiento
+    const formEditExpiry = document.getElementById('formEditExpiry');
+    if (formEditExpiry) formEditExpiry.addEventListener('submit', submitEditExpiryForm);
   }
 
   // 17. Simulador Interactivo de la Landing Page
@@ -1800,6 +1936,69 @@ const App = (() => {
     }
   }
 
+  // Switch y Badge interactivo de API para localhost <-> https://expiry-gules.vercel.app/
+  function toggleRemoteApi() {
+    state.useRemoteApi = !state.useRemoteApi;
+    localStorage.setItem('expiry_use_remote_api', state.useRemoteApi ? 'true' : 'false');
+    renderApiSwitchBadge();
+    showToast(
+      state.useRemoteApi
+        ? '☁️ Conectado a la API en la nube: ' + state.remoteApiBase
+        : '💻 Conectado a la API local (localhost)',
+      'info'
+    );
+    checkAuthStatus();
+  }
+
+  function setApiTarget(target) {
+    state.useRemoteApi = (target === 'remote');
+    localStorage.setItem('expiry_use_remote_api', state.useRemoteApi ? 'true' : 'false');
+    renderApiSwitchBadge();
+    checkAuthStatus();
+  }
+
+  function renderApiSwitchBadge() {
+    const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    let badge = document.getElementById('apiSwitchBadge');
+    if (!isLocalhost) {
+      if (badge) badge.remove();
+      return;
+    }
+
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'apiSwitchBadge';
+      badge.style.position = 'fixed';
+      badge.style.bottom = '18px';
+      badge.style.left = '18px';
+      badge.style.zIndex = '99999';
+      badge.style.cursor = 'pointer';
+      badge.style.padding = '8px 14px';
+      badge.style.borderRadius = '50px';
+      badge.style.fontSize = '12px';
+      badge.style.fontWeight = '700';
+      badge.style.display = 'flex';
+      badge.style.alignItems = 'center';
+      badge.style.gap = '8px';
+      badge.style.boxShadow = '0 4px 14px rgba(0,0,0,0.2)';
+      badge.style.transition = 'all 0.25s ease';
+      badge.onclick = () => toggleRemoteApi();
+      document.body.appendChild(badge);
+    }
+
+    if (state.useRemoteApi) {
+      badge.style.background = '#0284c7';
+      badge.style.color = '#ffffff';
+      badge.innerHTML = '<i class="fas fa-cloud"></i> <span>API: Vercel Cloud (expiry-gules)</span> <i class="fas fa-sync-alt" style="font-size:10px;opacity:0.8;"></i>';
+      badge.title = 'Haga clic para cambiar a la API local de localhost';
+    } else {
+      badge.style.background = '#1e293b';
+      badge.style.color = '#f8fafc';
+      badge.innerHTML = '<i class="fas fa-laptop-code"></i> <span>API: Localhost (XAMPP)</span> <i class="fas fa-sync-alt" style="font-size:10px;opacity:0.8;"></i>';
+      badge.title = 'Haga clic para conectar su localhost a https://expiry-gules.vercel.app';
+    }
+  }
+
   // API Pública expuesta
   return {
     init,
@@ -1848,74 +2047,28 @@ const App = (() => {
     seleccionarRemitente,
     showAppView,
     showLandingView,
+    toggleUserDropdown,
+    closeUserDropdown,
+    openSwitchRoleModal,
+    closeSwitchRoleModal,
+    selectRoleOption,
+    handleSwitchRoleSubmit,
     toggleRemoteApi,
     setApiTarget,
     renderApiSwitchBadge
   };
 })();
 
-// Switch y Badge interactivo de API para localhost <-> https://expiry-gules.vercel.app/
-function toggleRemoteApi() {
-  state.useRemoteApi = !state.useRemoteApi;
-  localStorage.setItem('expiry_use_remote_api', state.useRemoteApi ? 'true' : 'false');
-  renderApiSwitchBadge();
-  showToast(
-    state.useRemoteApi
-      ? '☁️ Conectado a la API en la nube: ' + state.remoteApiBase
-      : '💻 Conectado a la API local (localhost)',
-    'info'
-  );
-  checkAuthStatus();
-}
-
-function setApiTarget(target) {
-  state.useRemoteApi = (target === 'remote');
-  localStorage.setItem('expiry_use_remote_api', state.useRemoteApi ? 'true' : 'false');
-  renderApiSwitchBadge();
-  checkAuthStatus();
-}
-
-function renderApiSwitchBadge() {
-  const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-  let badge = document.getElementById('apiSwitchBadge');
-  if (!isLocalhost) {
-    if (badge) badge.remove();
-    return;
+// Cerrar dropdown de usuario si se hace clic afuera
+document.addEventListener('click', (e) => {
+  const wrapper = document.getElementById('userDropdownWrapper');
+  const menu = document.getElementById('userDropdownMenu');
+  if (wrapper && menu && !menu.classList.contains('hidden')) {
+    if (!wrapper.contains(e.target)) {
+      App.closeUserDropdown();
+    }
   }
-
-  if (!badge) {
-    badge = document.createElement('div');
-    badge.id = 'apiSwitchBadge';
-    badge.style.position = 'fixed';
-    badge.style.bottom = '18px';
-    badge.style.left = '18px';
-    badge.style.zIndex = '99999';
-    badge.style.cursor = 'pointer';
-    badge.style.padding = '8px 14px';
-    badge.style.borderRadius = '50px';
-    badge.style.fontSize = '12px';
-    badge.style.fontWeight = '700';
-    badge.style.display = 'flex';
-    badge.style.alignItems = 'center';
-    badge.style.gap = '8px';
-    badge.style.boxShadow = '0 4px 14px rgba(0,0,0,0.2)';
-    badge.style.transition = 'all 0.25s ease';
-    badge.onclick = () => App.toggleRemoteApi();
-    document.body.appendChild(badge);
-  }
-
-  if (state.useRemoteApi) {
-    badge.style.background = '#0284c7';
-    badge.style.color = '#ffffff';
-    badge.innerHTML = '<i class="fas fa-cloud"></i> <span>API: Vercel Cloud (expiry-gules)</span> <i class="fas fa-sync-alt" style="font-size:10px;opacity:0.8;"></i>';
-    badge.title = 'Haga clic para cambiar a la API local de localhost';
-  } else {
-    badge.style.background = '#1e293b';
-    badge.style.color = '#f8fafc';
-    badge.innerHTML = '<i class="fas fa-laptop-code"></i> <span>API: Localhost (XAMPP)</span> <i class="fas fa-sync-alt" style="font-size:10px;opacity:0.8;"></i>';
-    badge.title = 'Haga clic para conectar su localhost a https://expiry-gules.vercel.app';
-  }
-}
+});
 
 // Inicialización de la aplicación
 document.addEventListener('DOMContentLoaded', App.init);
@@ -1976,5 +2129,21 @@ document.addEventListener('click', (e) => {
   if (tabMatch) {
     document.querySelector(tabMatch[1])?.click();
     return;
+  }
+}, false);
+
+// Delegador seguro universal de submit para formularios (CSP estricto)
+document.addEventListener('submit', (e) => {
+  const el = e.target.closest('[onsubmit]');
+  if (!el) return;
+  const code = el.getAttribute('onsubmit');
+  if (!code) return;
+  const appMatch = code.match(/^App\.([a-zA-Z0-9_]+)\((.*)\)$/);
+  if (appMatch) {
+    const fn = appMatch[1];
+    if (typeof App !== 'undefined' && typeof App[fn] === 'function') {
+      e.preventDefault();
+      App[fn].call(App, e);
+    }
   }
 }, false);

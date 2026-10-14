@@ -367,24 +367,24 @@ class ResendEmailService {
         $bloqueFinanciero = '';
         if ($incFinanciero) {
             $bloqueFinanciero = "
-                <table width='100%' cellpadding='0' cellspacing='0' style='background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%); border-radius: 12px; border: 1px solid #334155; margin-bottom: 24px;'>
+                <table class='mobile-full-width' width='100%' cellpadding='0' cellspacing='0' style='background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%); border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px;'>
                     <tr>
-                        <td style='padding: 20px 24px;'>
-                            <table width='100%'>
+                        <td class='mobile-pad-card' style='padding: 20px 22px;'>
+                            <table width='100%' cellpadding='0' cellspacing='0'>
                                 <tr>
-                                    <td>
+                                    <td class='mobile-stack' style='vertical-align: top;'>
                                         <div style='font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; font-weight: 700;'>
                                             💰 Capital Total en Riesgo de Merma
                                         </div>
-                                        <div style='font-size: 28px; font-weight: 800; color: #f87171; margin-top: 4px; letter-spacing: -0.5px;'>
+                                        <div class='mobile-amount-text' style='font-size: 28px; font-weight: 800; color: #f87171; margin-top: 4px; letter-spacing: -0.5px;'>
                                             {$dineroRiesgo}
                                         </div>
-                                        <div style='font-size: 13px; color: #cbd5e1; margin-top: 6px; line-height: 1.4;'>
-                                            Inversión en productos con fecha límite próxima. Evitá tirar mercadería aplicando promociones antes de la fecha de caducidad.
+                                        <div style='font-size: 12px; color: #cbd5e1; margin-top: 6px; line-height: 1.4;'>
+                                            Inversión en productos con fecha límite próxima. Evitá tirar mercadería aplicando promociones antes del vencimiento.
                                         </div>
                                     </td>
-                                    <td align='right' style='vertical-align: top;'>
-                                        <div style='background: #374151; padding: 8px 14px; border-radius: 8px; font-size: 12px; color: #e2e8f0; font-weight: 600; display: inline-block;'>
+                                    <td class='mobile-stack mobile-badge-row' align='right' style='vertical-align: top; padding-top: 4px;'>
+                                        <div style='background: #374151; padding: 7px 12px; border-radius: 8px; font-size: 11px; color: #e2e8f0; font-weight: 600; display: inline-block; white-space: nowrap;'>
                                             ⏱️ {$textoFrecuencia}
                                         </div>
                                     </td>
@@ -396,7 +396,7 @@ class ResendEmailService {
             ";
         }
 
-        // 2. Bloque de Mercadería Ya Vencida
+        // 2. Bloque de Mercadería Ya Vencida (Cards 100% Fluidas Móviles)
         $bloqueVencidos = '';
         if ($incVencidos) {
             if ($totalVencidos > 0) {
@@ -405,52 +405,57 @@ class ResendEmailService {
                     $dias = abs((int)$l['dias_restantes']);
                     $riesgo = number_format($l['dinero_en_riesgo'], 0, ',', '.') . ' ' . $moneda;
                     $filasVencidas .= "
-                        <tr style='border-bottom: 1px solid #334155;'>
-                            <td style='padding: 10px 12px; font-weight: bold; color: #ffffff;'>{$l['producto_nombre']}</td>
-                            <td style='padding: 10px 12px; color: #cbd5e1; font-family: monospace;'>{$l['codigo_barra']}</td>
-                            <td style='padding: 10px 12px; color: #cbd5e1;'>
-                                {$l['fecha_vencimiento']}<br>
-                                <span style='color: #ef4444; font-size: 11px; font-weight: 800; background: rgba(239,68,68,0.15); padding: 2px 6px; border-radius: 4px;'>Venció hace {$dias}d</span>
-                            </td>
-                            <td style='padding: 10px 12px; color: #cbd5e1;'>{$l['cantidad_actual']} unid. ({$l['ubicacion']})</td>
-                            <td style='padding: 10px 12px; color: #f87171; font-weight: bold; text-align: right;'>{$riesgo}</td>
-                        </tr>
+                        <div style='background: #0f172a; border: 1px solid #374151; border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;'>
+                            <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse: collapse;'>
+                                <tr>
+                                    <td style='vertical-align: top;'>
+                                        <strong style='color: #ffffff; font-size: 14px; display: block; line-height: 1.3;'>{$l['producto_nombre']}</strong>
+                                        <span style='color: #94a3b8; font-size: 11px; font-family: monospace;'>Cód: {$l['codigo_barra']}</span>
+                                    </td>
+                                    <td align='right' style='vertical-align: top; white-space: nowrap; padding-left: 12px;'>
+                                        <div style='color: #ef4444; font-size: 15px; font-weight: 800;'>{$riesgo}</div>
+                                        <span style='color: #94a3b8; font-size: 10px; text-transform: uppercase;'>Pérdida Neta</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan='2' style='padding-top: 8px; margin-top: 8px; border-top: 1px solid #1e293b;'>
+                                        <table width='100%' cellpadding='0' cellspacing='0'>
+                                            <tr>
+                                                <td style='font-size: 12px; color: #cbd5e1;'>
+                                                    📅 <strong>{$l['fecha_vencimiento']}</strong> • <span style='color: #ef4444; font-weight: 800; background: rgba(239,68,68,0.2); padding: 2px 6px; border-radius: 4px; font-size: 11px;'>Venció hace {$dias}d</span>
+                                                </td>
+                                                <td align='right' style='font-size: 12px; color: #94a3b8;'>
+                                                    📦 <strong>{$l['cantidad_actual']} unid.</strong> ({$l['ubicacion']})
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
                     ";
                 }
 
                 $bloqueVencidos = "
-                    <div style='margin-bottom: 24px;'>
-                        <div style='background: #450a0a; border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 8px 8px 0 0;'>
-                            <h3 style='margin: 0; font-size: 15px; color: #fca5a5;'>
+                    <div style='margin-bottom: 22px;'>
+                        <div style='background: #450a0a; border-left: 4px solid #ef4444; padding: 12px 14px; border-radius: 8px; margin-bottom: 10px;'>
+                            <h3 style='margin: 0; font-size: 14px; color: #fca5a5;'>
                                 🏴 Mercadería Ya Vencida — Retiro Obligatorio ({$totalVencidos} lotes)
                             </h3>
-                            <p style='margin: 4px 0 0; font-size: 12px; color: #fecaca;'>
+                            <p style='margin: 3px 0 0; font-size: 11px; color: #fecaca;'>
                                 Acción obligatoria: Retirar inmediatamente de góndolas para evitar sanciones y proteger la confianza del cliente.
                             </p>
                         </div>
-                        <table width='100%' cellpadding='0' cellspacing='0' style='font-size: 13px; border-collapse: collapse; background: #0f172a; border-radius: 0 0 8px 8px;'>
-                            <thead>
-                                <tr style='background: #1e293b; color: #94a3b8; text-align: left; font-size: 11px; text-transform: uppercase;'>
-                                    <th style='padding: 10px 12px;'>Producto</th>
-                                    <th style='padding: 10px 12px;'>Código</th>
-                                    <th style='padding: 10px 12px;'>Vencimiento</th>
-                                    <th style='padding: 10px 12px;'>Stock</th>
-                                    <th style='padding: 10px 12px; text-align: right;'>Pérdida Neta</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {$filasVencidas}
-                            </tbody>
-                        </table>
+                        {$filasVencidas}
                     </div>
                 ";
             } else {
                 $bloqueVencidos = "
-                    <div style='margin-bottom: 24px; background: #064e3b; border-left: 4px solid #10b981; padding: 14px 18px; border-radius: 8px;'>
-                        <h3 style='margin: 0; font-size: 15px; color: #a7f3d0;'>
+                    <div style='margin-bottom: 22px; background: #064e3b; border-left: 4px solid #10b981; padding: 12px 16px; border-radius: 8px;'>
+                        <h3 style='margin: 0; font-size: 14px; color: #a7f3d0;'>
                             ✅ Mercadería Ya Vencida (0 productos caducados)
                         </h3>
-                        <p style='margin: 4px 0 0; font-size: 12px; color: #d1fae5;'>
+                        <p style='margin: 3px 0 0; font-size: 11px; color: #d1fae5;'>
                             ¡Excelente estado! No hay mercadería vencida en góndolas ni depósitos.
                         </p>
                     </div>
@@ -458,62 +463,67 @@ class ResendEmailService {
             }
         }
 
-        // 3. Bloque de Semáforo Rojo (Vencimiento en ≤ 7 días)
+        // 3. Bloque de Semáforo Rojo (Vencimiento en ≤ 7 días - Cards 100% Fluidas Móviles)
         $bloqueRojos = '';
         if ($incRojos) {
             if ($totalRojos > 0) {
                 $filasRojas = '';
                 foreach ($lotesRojosVigentes as $l) {
                     $dias = (int)$l['dias_restantes'];
-                    $textoDias = $dias === 0 ? "<span style='color: #ef4444; font-weight: 800; background: rgba(239,68,68,0.2); padding: 2px 6px; border-radius: 4px;'>¡VENCE HOY!</span>" : "<span style='color: #f87171; font-weight: 700;'>Vence en {$dias}d</span>";
+                    $textoDias = $dias === 0 ? "<span style='color: #ef4444; font-weight: 800; background: rgba(239,68,68,0.2); padding: 2px 6px; border-radius: 4px; font-size: 11px;'>¡VENCE HOY!</span>" : "<span style='color: #f87171; font-weight: 700; font-size: 11px;'>Vence en {$dias}d</span>";
                     $riesgo = number_format($l['dinero_en_riesgo'], 0, ',', '.') . ' ' . $moneda;
                     $filasRojas .= "
-                        <tr style='border-bottom: 1px solid #334155;'>
-                            <td style='padding: 10px 12px; font-weight: bold; color: #ffffff;'>{$l['producto_nombre']}</td>
-                            <td style='padding: 10px 12px; color: #cbd5e1; font-family: monospace;'>{$l['codigo_barra']}</td>
-                            <td style='padding: 10px 12px; color: #cbd5e1;'>
-                                {$l['fecha_vencimiento']}<br>
-                                <small>{$textoDias}</small>
-                            </td>
-                            <td style='padding: 10px 12px; color: #cbd5e1;'>{$l['cantidad_actual']} unid. ({$l['ubicacion']})</td>
-                            <td style='padding: 10px 12px; color: #fca5a5; font-weight: bold; text-align: right;'>{$riesgo}</td>
-                        </tr>
+                        <div style='background: #0f172a; border: 1px solid #374151; border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;'>
+                            <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse: collapse;'>
+                                <tr>
+                                    <td style='vertical-align: top;'>
+                                        <strong style='color: #ffffff; font-size: 14px; display: block; line-height: 1.3;'>{$l['producto_nombre']}</strong>
+                                        <span style='color: #94a3b8; font-size: 11px; font-family: monospace;'>Cód: {$l['codigo_barra']}</span>
+                                    </td>
+                                    <td align='right' style='vertical-align: top; white-space: nowrap; padding-left: 12px;'>
+                                        <div style='color: #f87171; font-size: 15px; font-weight: 800;'>{$riesgo}</div>
+                                        <span style='color: #94a3b8; font-size: 10px; text-transform: uppercase;'>Costo en Riesgo</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan='2' style='padding-top: 8px; margin-top: 8px; border-top: 1px solid #1e293b;'>
+                                        <table width='100%' cellpadding='0' cellspacing='0'>
+                                            <tr>
+                                                <td style='font-size: 12px; color: #cbd5e1;'>
+                                                    📅 <strong>{$l['fecha_vencimiento']}</strong> • {$textoDias}
+                                                </td>
+                                                <td align='right' style='font-size: 12px; color: #94a3b8;'>
+                                                    📦 <strong>{$l['cantidad_actual']} unid.</strong> ({$l['ubicacion']})
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
                     ";
                 }
 
                 $bloqueRojos = "
-                    <div style='margin-bottom: 24px;'>
-                        <div style='background: #3b0764; border-left: 4px solid #dc2626; padding: 12px 16px; border-radius: 8px 8px 0 0;'>
-                            <h3 style='margin: 0; font-size: 15px; color: #fca5a5;'>
+                    <div style='margin-bottom: 22px;'>
+                        <div style='background: #3b0764; border-left: 4px solid #dc2626; padding: 12px 14px; border-radius: 8px; margin-bottom: 10px;'>
+                            <h3 style='margin: 0; font-size: 14px; color: #fca5a5;'>
                                 🔴 Semáforo Rojo — Vencimiento Crítico (≤ 7 días: {$totalRojos} lotes)
                             </h3>
-                            <p style='margin: 4px 0 0; font-size: 12px; color: #e9d5ff;'>
+                            <p style='margin: 3px 0 0; font-size: 11px; color: #e9d5ff;'>
                                 Acción recomendada: Activar ofertas relámpago, carteles en caja o promociones 2x1 para recuperar el costo.
                             </p>
                         </div>
-                        <table width='100%' cellpadding='0' cellspacing='0' style='font-size: 13px; border-collapse: collapse; background: #0f172a; border-radius: 0 0 8px 8px;'>
-                            <thead>
-                                <tr style='background: #1e293b; color: #94a3b8; text-align: left; font-size: 11px; text-transform: uppercase;'>
-                                    <th style='padding: 10px 12px;'>Producto</th>
-                                    <th style='padding: 10px 12px;'>Código</th>
-                                    <th style='padding: 10px 12px;'>Vencimiento</th>
-                                    <th style='padding: 10px 12px;'>Stock</th>
-                                    <th style='padding: 10px 12px; text-align: right;'>Costo en Riesgo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {$filasRojas}
-                            </tbody>
-                        </table>
+                        {$filasRojas}
                     </div>
                 ";
             } else {
                 $bloqueRojos = "
-                    <div style='margin-bottom: 24px; background: #064e3b; border-left: 4px solid #10b981; padding: 14px 18px; border-radius: 8px;'>
-                        <h3 style='margin: 0; font-size: 15px; color: #a7f3d0;'>
+                    <div style='margin-bottom: 22px; background: #064e3b; border-left: 4px solid #10b981; padding: 12px 16px; border-radius: 8px;'>
+                        <h3 style='margin: 0; font-size: 14px; color: #a7f3d0;'>
                             ✅ Semáforo Rojo (0 productos críticos)
                         </h3>
-                        <p style='margin: 4px 0 0; font-size: 12px; color: #d1fae5;'>
+                        <p style='margin: 3px 0 0; font-size: 11px; color: #d1fae5;'>
                             No hay lotes con vencimiento urgente en los próximos 7 días.
                         </p>
                     </div>
@@ -521,7 +531,7 @@ class ResendEmailService {
             }
         }
 
-        // 4. Bloque de Semáforo Amarillo (8 a 30 días)
+        // 4. Bloque de Semáforo Amarillo (8 a 30 días - Cards 100% Fluidas Móviles)
         $bloqueAmarillos = '';
         if ($incAmarillos) {
             if ($totalAmarillos > 0) {
@@ -530,52 +540,57 @@ class ResendEmailService {
                     $dias = (int)$l['dias_restantes'];
                     $riesgo = number_format($l['dinero_en_riesgo'], 0, ',', '.') . ' ' . $moneda;
                     $filasAmarillas .= "
-                        <tr style='border-bottom: 1px solid #334155;'>
-                            <td style='padding: 10px 12px; font-weight: bold; color: #ffffff;'>{$l['producto_nombre']}</td>
-                            <td style='padding: 10px 12px; color: #cbd5e1; font-family: monospace;'>{$l['codigo_barra']}</td>
-                            <td style='padding: 10px 12px; color: #cbd5e1;'>
-                                {$l['fecha_vencimiento']}<br>
-                                <small style='color: #fbbf24; font-weight: 600;'>En {$dias} días</small>
-                            </td>
-                            <td style='padding: 10px 12px; color: #cbd5e1;'>{$l['cantidad_actual']} unid. ({$l['ubicacion']})</td>
-                            <td style='padding: 10px 12px; color: #fcd34d; font-weight: 600; text-align: right;'>{$riesgo}</td>
-                        </tr>
+                        <div style='background: #0f172a; border: 1px solid #374151; border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;'>
+                            <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse: collapse;'>
+                                <tr>
+                                    <td style='vertical-align: top;'>
+                                        <strong style='color: #ffffff; font-size: 14px; display: block; line-height: 1.3;'>{$l['producto_nombre']}</strong>
+                                        <span style='color: #94a3b8; font-size: 11px; font-family: monospace;'>Cód: {$l['codigo_barra']}</span>
+                                    </td>
+                                    <td align='right' style='vertical-align: top; white-space: nowrap; padding-left: 12px;'>
+                                        <div style='color: #fcd34d; font-size: 15px; font-weight: 800;'>{$riesgo}</div>
+                                        <span style='color: #94a3b8; font-size: 10px; text-transform: uppercase;'>Capital en Stock</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan='2' style='padding-top: 8px; margin-top: 8px; border-top: 1px solid #1e293b;'>
+                                        <table width='100%' cellpadding='0' cellspacing='0'>
+                                            <tr>
+                                                <td style='font-size: 12px; color: #cbd5e1;'>
+                                                    📅 <strong>{$l['fecha_vencimiento']}</strong> • <span style='color: #fbbf24; font-weight: 700; font-size: 11px;'>En {$dias} días</span>
+                                                </td>
+                                                <td align='right' style='font-size: 12px; color: #94a3b8;'>
+                                                    📦 <strong>{$l['cantidad_actual']} unid.</strong> ({$l['ubicacion']})
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
                     ";
                 }
 
                 $bloqueAmarillos = "
-                    <div style='margin-bottom: 24px;'>
-                        <div style='background: #451a03; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 8px 8px 0 0;'>
-                            <h3 style='margin: 0; font-size: 15px; color: #fde68a;'>
+                    <div style='margin-bottom: 22px;'>
+                        <div style='background: #451a03; border-left: 4px solid #f59e0b; padding: 12px 14px; border-radius: 8px; margin-bottom: 10px;'>
+                            <h3 style='margin: 0; font-size: 14px; color: #fde68a;'>
                                 🟡 Semáforo Amarillo — Alerta Preventiva (8 a 30 días: {$totalAmarillos} lotes)
                             </h3>
-                            <p style='margin: 4px 0 0; font-size: 12px; color: #fef3c7;'>
+                            <p style='margin: 3px 0 0; font-size: 11px; color: #fef3c7;'>
                                 Rotación preventiva: Colocar al frente de la góndola o heladera para garantizar venta por rotación FIFO.
                             </p>
                         </div>
-                        <table width='100%' cellpadding='0' cellspacing='0' style='font-size: 13px; border-collapse: collapse; background: #0f172a; border-radius: 0 0 8px 8px;'>
-                            <thead>
-                                <tr style='background: #1e293b; color: #94a3b8; text-align: left; font-size: 11px; text-transform: uppercase;'>
-                                    <th style='padding: 10px 12px;'>Producto</th>
-                                    <th style='padding: 10px 12px;'>Código</th>
-                                    <th style='padding: 10px 12px;'>Vencimiento</th>
-                                    <th style='padding: 10px 12px;'>Stock</th>
-                                    <th style='padding: 10px 12px; text-align: right;'>Capital</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {$filasAmarillas}
-                            </tbody>
-                        </table>
+                        {$filasAmarillas}
                     </div>
                 ";
             } else {
                 $bloqueAmarillos = "
-                    <div style='margin-bottom: 24px; background: #064e3b; border-left: 4px solid #10b981; padding: 14px 18px; border-radius: 8px;'>
-                        <h3 style='margin: 0; font-size: 15px; color: #a7f3d0;'>
+                    <div style='margin-bottom: 22px; background: #064e3b; border-left: 4px solid #10b981; padding: 12px 16px; border-radius: 8px;'>
+                        <h3 style='margin: 0; font-size: 14px; color: #a7f3d0;'>
                             ✅ Semáforo Amarillo (0 productos en alerta preventiva)
                         </h3>
-                        <p style='margin: 4px 0 0; font-size: 12px; color: #d1fae5;'>
+                        <p style='margin: 3px 0 0; font-size: 11px; color: #d1fae5;'>
                             No hay lotes con vencimiento entre 8 y 30 días.
                         </p>
                     </div>
@@ -633,34 +648,103 @@ class ResendEmailService {
 
         return "
         <!DOCTYPE html>
-        <html>
+        <html lang='es' xmlns='http://www.w3.org/1999/xhtml'>
         <head>
             <meta charset='utf-8'>
-            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0'>
+            <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+            <meta name='x-apple-disable-message-reformatting'>
+            <meta name='format-detection' content='telephone=no,address=no,email=no,date=no,url=no'>
+            <meta name='color-scheme' content='dark'>
+            <meta name='supported-color-schemes' content='dark'>
             <title>{$tituloReporte} - {$nombreNegocio}</title>
+            <style>
+                html, body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    height: 100% !important;
+                    width: 100% !important;
+                    -webkit-text-size-adjust: 100%;
+                    -ms-text-size-adjust: 100%;
+                    background-color: #0b0f19;
+                }
+                table, td {
+                    mso-table-lspace: 0pt !important;
+                    mso-table-rspace: 0pt !important;
+                }
+                table {
+                    border-spacing: 0 !important;
+                    border-collapse: collapse !important;
+                    table-layout: fixed !important;
+                    margin: 0 auto !important;
+                }
+                * {
+                    box-sizing: border-box;
+                }
+                @media only screen and (max-width: 620px) {
+                    .email-outer-table {
+                        padding: 0 !important;
+                        width: 100% !important;
+                    }
+                    .email-main-card {
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        border-radius: 0 !important;
+                        border-left: none !important;
+                        border-right: none !important;
+                    }
+                    .email-header-pad {
+                        padding: 20px 14px !important;
+                    }
+                    .email-body-pad {
+                        padding: 16px 12px !important;
+                    }
+                    .mobile-col {
+                        display: block !important;
+                        width: 100% !important;
+                        text-align: left !important;
+                    }
+                    .mobile-date-badge {
+                        display: inline-block !important;
+                        margin-top: 10px !important;
+                        text-align: left !important;
+                    }
+                    .mobile-auth-badge {
+                        margin-top: 12px !important;
+                        text-align: left !important;
+                    }
+                    .title-h1 {
+                        font-size: 19px !important;
+                        line-height: 1.3 !important;
+                    }
+                    .footer-pad {
+                        padding: 18px 14px !important;
+                    }
+                }
+            </style>
         </head>
-        <body style='margin: 0; padding: 0; background-color: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;'>
-            <table width='100%' cellpadding='0' cellspacing='0' style='background-color: #0b0f19; padding: 25px 10px;'>
+        <body style='margin: 0; padding: 0; background-color: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;'>
+            <table role='presentation' class='email-outer-table' width='100%' cellpadding='0' cellspacing='0' style='background-color: #0b0f19; padding: 20px 10px; width: 100%;'>
                 <tr>
                     <td align='center'>
-                        <table width='680' cellpadding='0' cellspacing='0' style='background-color: #111827; border: 1px solid #1f2937; border-radius: 16px; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.6); max-width: 100%;'>
+                        <table role='presentation' class='email-main-card' width='100%' cellpadding='0' cellspacing='0' style='background-color: #111827; border: 1px solid #1f2937; border-radius: 16px; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.6); max-width: 640px; width: 100%; margin: 0 auto;'>
                             <!-- Cabecera Ejecutiva -->
                             <tr>
-                                <td style='background: linear-gradient(135deg, #1e3a8a 0%, #1e1b4b 50%, #311042 100%); padding: 28px 32px; border-bottom: 1px solid #374151;'>
-                                    <table width='100%'>
+                                <td class='email-header-pad' style='background: linear-gradient(135deg, #1e3a8a 0%, #1e1b4b 50%, #311042 100%); padding: 26px 28px; border-bottom: 1px solid #374151;'>
+                                    <table role='presentation' width='100%' cellpadding='0' cellspacing='0'>
                                         <tr>
-                                            <td>
+                                            <td class='mobile-col' style='vertical-align: top;'>
                                                 <div style='display: inline-block; background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; margin-bottom: 8px;'>
                                                     🚦 Expiry • Reporte Filtrado
                                                 </div>
-                                                <h1 style='margin: 0; font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px;'>
+                                                <h1 class='title-h1' style='margin: 0; font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px; line-height: 1.25;'>
                                                     {$tituloReporte}
                                                 </h1>
-                                                <p style='margin: 6px 0 0; font-size: 13px; color: #cbd5e1;'>
-                                                    {$nombreNegocio} • Para: <strong>{$nombreUsuario}</strong> {$copiaTexto}
+                                                <p style='margin: 6px 0 0; font-size: 13px; color: #cbd5e1; line-height: 1.4;'>
+                                                    {$nombreNegocio} • Para: <strong style='color: #ffffff;'>{$nombreUsuario}</strong> {$copiaTexto}
                                                 </p>
                                                 <!-- Badge Destacado de Quién Mandó y su Cargo / Rol -->
-                                                <div style='margin-top: 12px; display: inline-block; background: rgba(15, 23, 42, 0.75); border: 1px solid #334155; padding: 6px 12px; border-radius: 8px;'>
+                                                <div style='margin-top: 12px; display: inline-block; background: rgba(15, 23, 42, 0.85); border: 1px solid #334155; padding: 6px 12px; border-radius: 8px;'>
                                                     <span style='color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;'>📤 Despachado por:</span>
                                                     <strong style='color: #ffffff; font-size: 12px; margin-left: 4px;'>{$remitenteNombre}</strong>
                                                     <span style='background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;'>
@@ -668,10 +752,10 @@ class ResendEmailService {
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td align='right' style='vertical-align: top; font-size: 12px; color: #94a3b8;'>
-                                                <span style='background: rgba(15, 23, 42, 0.6); padding: 6px 12px; border-radius: 8px; border: 1px solid #334155; display: inline-block;'>
+                                            <td class='mobile-col' align='right' style='vertical-align: top;'>
+                                                <div class='mobile-date-badge' style='background: rgba(15, 23, 42, 0.6); padding: 6px 12px; border-radius: 8px; border: 1px solid #334155; font-size: 12px; color: #94a3b8; display: inline-block; white-space: nowrap;'>
                                                     📅 {$fechaHoy}
-                                                </span>
+                                                </div>
                                             </td>
                                         </tr>
                                     </table>
@@ -680,7 +764,7 @@ class ResendEmailService {
 
                             <!-- Cuerpo del Informe -->
                             <tr>
-                                <td style='padding: 26px 30px;'>
+                                <td class='email-body-pad' style='padding: 24px 26px;'>
                                     {$bloqueFinanciero}
                                     {$bloqueVencidos}
                                     {$bloqueRojos}
@@ -689,27 +773,27 @@ class ResendEmailService {
                                     {$bloqueVacio}
 
                                     <!-- Bloque Institucional: Quién Mandó y Cargo o Rol en el Negocio -->
-                                    <table width='100%' cellpadding='0' cellspacing='0' style='margin-top: 20px; background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 12px;'>
+                                    <table role='presentation' width='100%' cellpadding='0' cellspacing='0' style='margin-top: 16px; background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 12px;'>
                                         <tr>
-                                            <td style='padding: 18px 24px;'>
-                                                <table width='100%'>
+                                            <td style='padding: 16px 20px;'>
+                                                <table role='presentation' width='100%' cellpadding='0' cellspacing='0'>
                                                     <tr>
-                                                        <td style='vertical-align: middle;'>
+                                                        <td class='mobile-col' style='vertical-align: middle;'>
                                                             <div style='font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; font-weight: 700;'>
                                                                 👤 Responsable de Emisión del Reporte
                                                             </div>
-                                                            <div style='font-size: 16px; font-weight: 800; color: #ffffff; margin-top: 3px;'>
+                                                            <div style='font-size: 15px; font-weight: 800; color: #ffffff; margin-top: 3px;'>
                                                                 {$remitenteNombre}
                                                             </div>
-                                                            <div style='font-size: 13px; color: #38bdf8; font-weight: 700; margin-top: 3px;'>
+                                                            <div style='font-size: 12px; color: #38bdf8; font-weight: 700; margin-top: 3px;'>
                                                                 💼 Cargo o Rol en el Negocio: <span style='color: #bae6fd;'>{$remitenteCargo}</span>
                                                             </div>
-                                                            <div style='font-size: 12px; color: #94a3b8; margin-top: 6px; line-height: 1.4;'>
+                                                            <div style='font-size: 11px; color: #94a3b8; margin-top: 5px; line-height: 1.4;'>
                                                                 Informe emitido y validado oficialmente desde el sistema <strong>Expiry</strong>.
                                                             </div>
                                                         </td>
-                                                        <td align='right' style='vertical-align: middle; width: 140px;'>
-                                                            <div style='background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; border-radius: 8px; padding: 8px 12px; text-align: center;'>
+                                                        <td class='mobile-col' align='right' style='vertical-align: middle;'>
+                                                            <div class='mobile-auth-badge' style='background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; border-radius: 8px; padding: 7px 12px; text-align: center; display: inline-block;'>
                                                                 <span style='font-size: 11px; color: #34d399; font-weight: 800; text-transform: uppercase; display: block;'>
                                                                     ✔ Autenticado
                                                                 </span>
@@ -728,10 +812,10 @@ class ResendEmailService {
 
                             <!-- Pie de Página Institucional -->
                             <tr>
-                                <td style='background-color: #0b0f19; padding: 22px 30px; text-align: center; border-top: 1px solid #1f2937; font-size: 12px; color: #64748b; line-height: 1.5;'>
+                                <td class='footer-pad' style='background-color: #0b0f19; padding: 20px 24px; text-align: center; border-top: 1px solid #1f2937; font-size: 11px; color: #64748b; line-height: 1.5;'>
                                     Informe emitido por el sistema <strong>Expiry</strong> a través de <strong>Resend API</strong>.<br>
                                     Frecuencia de entrega configurada: <strong>{$textoFrecuencia}</strong>.<br>
-                                    <small style='color: #475569;'>Para modificar destinatarios, horario o filtros, ingresá a la pestaña 'Qué Mandar' desde tu panel administrativo.</small>
+                                    <span style='color: #475569;'>Para modificar destinatarios, horario o filtros, ingresá a la pestaña 'Qué Mandar' desde tu panel administrativo.</span>
                                 </td>
                             </tr>
                         </table>
@@ -752,18 +836,25 @@ class ResendEmailService {
         $remitenteCargo  = !empty($remitenteCargo) ? htmlspecialchars($remitenteCargo) : '👑 Dueño / Administrador General';
 
         $html = "
-            <div style='background: #0f172a; color: #f8fafc; padding: 30px; font-family: sans-serif; border-radius: 12px; max-width: 540px; margin: 0 auto; border: 1px solid #334155;'>
+        <!DOCTYPE html>
+        <html lang='es'>
+        <head>
+            <meta charset='utf-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+        </head>
+        <body style='margin: 0; padding: 15px 10px; background-color: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;'>
+            <div style='background: #111827; color: #f8fafc; padding: 24px; border-radius: 14px; max-width: 520px; width: 100%; margin: 0 auto; border: 1px solid #1f2937; box-shadow: 0 10px 25px rgba(0,0,0,0.5);'>
                 <div style='background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #10b981; display: inline-block; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 11px; text-transform: uppercase;'>
-                    Conexión Verificada
+                    ✔ Conexión Verificada
                 </div>
-                <h2 style='color: #ffffff; margin: 16px 0 8px;'>🚦 Conexión de Reportes Operativa</h2>
+                <h2 style='color: #ffffff; margin: 16px 0 8px; font-size: 20px;'>🚦 Conexión de Reportes Operativa</h2>
                 <p style='color: #cbd5e1; font-size: 14px; margin-top: 0;'>Hola <strong>{$nombreUsuario}</strong>,</p>
                 <p style='color: #94a3b8; font-size: 13px; line-height: 1.5;'>
                     El motor de avisos automáticos de <strong>{$nombreNegocio}</strong> está configurado y listo para entregar los reportes según la frecuencia y los módulos seleccionados.
                 </p>
-                <div style='background: #1e293b; padding: 14px 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981; font-size: 13px;'>
+                <div style='background: #1e293b; padding: 14px 16px; border-radius: 8px; margin: 18px 0; border-left: 4px solid #10b981; font-size: 13px;'>
                     <div style='color: #ffffff; font-weight: bold;'>Destinatario Principal:</div>
-                    <div style='color: #94a3b8;'>{$to}</div>
+                    <div style='color: #38bdf8;'>{$to}</div>
                     " . (!empty($cc) ? "<div style='color: #ffffff; font-weight: bold; margin-top: 8px;'>Destinatarios en Copia (CC):</div><div style='color: #94a3b8;'>{$cc}</div>" : "") . "
                     <div style='margin-top: 12px; padding-top: 10px; border-top: 1px solid #334155;'>
                         <div style='color: #94a3b8; font-size: 11px; text-transform: uppercase;'>👤 Despachado por:</div>
@@ -775,6 +866,8 @@ class ResendEmailService {
                     Si recibiste este correo, tu configuración y credenciales son 100% funcionales.
                 </p>
             </div>
+        </body>
+        </html>
         ";
 
         return self::sendEmail($to, $subject, $html, $cc);
