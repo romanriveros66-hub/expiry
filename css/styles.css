@@ -1868,6 +1868,124 @@ body {
   transform: translateX(20px);
 }
 
+/* Efectos visuales de tarjetas de toggle */
+.report-toggle-card {
+  transition: all 0.2s ease;
+}
+
+.report-toggle-card.active-toggle {
+  background: #f0f7ff;
+  border-color: #93c5fd;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.06);
+}
+
+.report-toggle-card.inactive-toggle {
+  opacity: 0.6;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+/* Tarjeta de Responsable de Emisión (Qué Mandar) */
+.report-sender-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-top: 14px;
+  margin-bottom: 14px;
+  transition: all 0.2s ease;
+}
+
+.report-sender-card:hover {
+  border-color: #cbd5e1;
+}
+
+.sender-card-header {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.sender-card-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sender-card-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #e0f2fe;
+  color: #0284c7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.sender-card-title {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sender-card-subtitle {
+  display: block;
+  font-size: 0.73rem;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.quick-senders-box {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.quick-senders-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 6px;
+}
+
+.quick-senders-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quick-chip-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.quick-chip-btn:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  color: #0369a1;
+  transform: translateY(-1px);
+}
+
+.quick-chip-btn.active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+
 /* Botón Guardar Configuración */
 .report-save-action-wrap {
   margin-top: 20px;

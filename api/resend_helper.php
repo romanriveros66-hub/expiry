@@ -322,11 +322,14 @@ class ResendEmailService {
         $fechaHoy = date('d/m/Y H:i');
 
         // Opciones de configuración con valores por defecto
-        $incVencidos   = !isset($filtrosConfig['incluir_vencidos'])   || (int)$filtrosConfig['incluir_vencidos'] === 1;
-        $incRojos      = !isset($filtrosConfig['incluir_rojos'])      || (int)$filtrosConfig['incluir_rojos'] === 1;
-        $incAmarillos  = !isset($filtrosConfig['incluir_amarillos'])  || (int)$filtrosConfig['incluir_amarillos'] === 1;
-        $incFinanciero = !isset($filtrosConfig['incluir_financiero']) || (int)$filtrosConfig['incluir_financiero'] === 1;
-        $incSugerencias= !isset($filtrosConfig['incluir_sugerencias'])|| (int)$filtrosConfig['incluir_sugerencias'] === 1;
+        $incVencidos   = isset($filtrosConfig['incluir_vencidos'])   ? ((int)$filtrosConfig['incluir_vencidos'] === 1)   : true;
+        $incRojos      = isset($filtrosConfig['incluir_rojos'])      ? ((int)$filtrosConfig['incluir_rojos'] === 1)      : true;
+        $incAmarillos  = isset($filtrosConfig['incluir_amarillos'])  ? ((int)$filtrosConfig['incluir_amarillos'] === 1)  : true;
+        $incFinanciero = isset($filtrosConfig['incluir_financiero']) ? ((int)$filtrosConfig['incluir_financiero'] === 1) : true;
+        $incSugerencias= isset($filtrosConfig['incluir_sugerencias'])? ((int)$filtrosConfig['incluir_sugerencias'] === 1): true;
+
+        $remitenteNombre = !empty($filtrosConfig['remitente_nombre']) ? htmlspecialchars($filtrosConfig['remitente_nombre']) : htmlspecialchars($nombreUsuario ?: 'Administrador Propietario');
+        $remitenteCargo  = !empty($filtrosConfig['remitente_cargo'])  ? htmlspecialchars($filtrosConfig['remitente_cargo'])  : '👑 Dueño / Administrador General';
 
         $frecuencia    = $filtrosConfig['frecuencia_reporte'] ?? 'DIARIO';
         $horaReporte   = $filtrosConfig['hora_reporte'] ?? '08:00';
@@ -395,150 +398,189 @@ class ResendEmailService {
 
         // 2. Bloque de Mercadería Ya Vencida
         $bloqueVencidos = '';
-        if ($incVencidos && $totalVencidos > 0) {
-            $filasVencidas = '';
-            foreach ($lotesVencidos as $l) {
-                $dias = abs((int)$l['dias_restantes']);
-                $riesgo = number_format($l['dinero_en_riesgo'], 0, ',', '.') . ' ' . $moneda;
-                $filasVencidas .= "
-                    <tr style='border-bottom: 1px solid #334155;'>
-                        <td style='padding: 10px 12px; font-weight: bold; color: #ffffff;'>{$l['producto_nombre']}</td>
-                        <td style='padding: 10px 12px; color: #cbd5e1; font-family: monospace;'>{$l['codigo_barra']}</td>
-                        <td style='padding: 10px 12px; color: #cbd5e1;'>
-                            {$l['fecha_vencimiento']}<br>
-                            <span style='color: #ef4444; font-size: 11px; font-weight: 800; background: rgba(239,68,68,0.15); padding: 2px 6px; border-radius: 4px;'>Venció hace {$dias}d</span>
-                        </td>
-                        <td style='padding: 10px 12px; color: #cbd5e1;'>{$l['cantidad_actual']} unid. ({$l['ubicacion']})</td>
-                        <td style='padding: 10px 12px; color: #f87171; font-weight: bold; text-align: right;'>{$riesgo}</td>
-                    </tr>
-                ";
-            }
+        if ($incVencidos) {
+            if ($totalVencidos > 0) {
+                $filasVencidas = '';
+                foreach ($lotesVencidos as $l) {
+                    $dias = abs((int)$l['dias_restantes']);
+                    $riesgo = number_format($l['dinero_en_riesgo'], 0, ',', '.') . ' ' . $moneda;
+                    $filasVencidas .= "
+                        <tr style='border-bottom: 1px solid #334155;'>
+                            <td style='padding: 10px 12px; font-weight: bold; color: #ffffff;'>{$l['producto_nombre']}</td>
+                            <td style='padding: 10px 12px; color: #cbd5e1; font-family: monospace;'>{$l['codigo_barra']}</td>
+                            <td style='padding: 10px 12px; color: #cbd5e1;'>
+                                {$l['fecha_vencimiento']}<br>
+                                <span style='color: #ef4444; font-size: 11px; font-weight: 800; background: rgba(239,68,68,0.15); padding: 2px 6px; border-radius: 4px;'>Venció hace {$dias}d</span>
+                            </td>
+                            <td style='padding: 10px 12px; color: #cbd5e1;'>{$l['cantidad_actual']} unid. ({$l['ubicacion']})</td>
+                            <td style='padding: 10px 12px; color: #f87171; font-weight: bold; text-align: right;'>{$riesgo}</td>
+                        </tr>
+                    ";
+                }
 
-            $bloqueVencidos = "
-                <div style='margin-bottom: 24px;'>
-                    <div style='background: #450a0a; border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 8px 8px 0 0;'>
-                        <h3 style='margin: 0; font-size: 15px; color: #fca5a5;'>
-                            🏴 Mercadería Ya Vencida — Retiro Obligatorio ({$totalVencidos} lotes)
+                $bloqueVencidos = "
+                    <div style='margin-bottom: 24px;'>
+                        <div style='background: #450a0a; border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 8px 8px 0 0;'>
+                            <h3 style='margin: 0; font-size: 15px; color: #fca5a5;'>
+                                🏴 Mercadería Ya Vencida — Retiro Obligatorio ({$totalVencidos} lotes)
+                            </h3>
+                            <p style='margin: 4px 0 0; font-size: 12px; color: #fecaca;'>
+                                Acción obligatoria: Retirar inmediatamente de góndolas para evitar sanciones y proteger la confianza del cliente.
+                            </p>
+                        </div>
+                        <table width='100%' cellpadding='0' cellspacing='0' style='font-size: 13px; border-collapse: collapse; background: #0f172a; border-radius: 0 0 8px 8px;'>
+                            <thead>
+                                <tr style='background: #1e293b; color: #94a3b8; text-align: left; font-size: 11px; text-transform: uppercase;'>
+                                    <th style='padding: 10px 12px;'>Producto</th>
+                                    <th style='padding: 10px 12px;'>Código</th>
+                                    <th style='padding: 10px 12px;'>Vencimiento</th>
+                                    <th style='padding: 10px 12px;'>Stock</th>
+                                    <th style='padding: 10px 12px; text-align: right;'>Pérdida Neta</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {$filasVencidas}
+                            </tbody>
+                        </table>
+                    </div>
+                ";
+            } else {
+                $bloqueVencidos = "
+                    <div style='margin-bottom: 24px; background: #064e3b; border-left: 4px solid #10b981; padding: 14px 18px; border-radius: 8px;'>
+                        <h3 style='margin: 0; font-size: 15px; color: #a7f3d0;'>
+                            ✅ Mercadería Ya Vencida (0 productos caducados)
                         </h3>
-                        <p style='margin: 4px 0 0; font-size: 12px; color: #fecaca;'>
-                            Acción obligatoria: Retirar inmediatamente de góndolas para evitar sanciones y proteger la confianza del cliente.
+                        <p style='margin: 4px 0 0; font-size: 12px; color: #d1fae5;'>
+                            ¡Excelente estado! No hay mercadería vencida en góndolas ni depósitos.
                         </p>
                     </div>
-                    <table width='100%' cellpadding='0' cellspacing='0' style='font-size: 13px; border-collapse: collapse; background: #0f172a; border-radius: 0 0 8px 8px;'>
-                        <thead>
-                            <tr style='background: #1e293b; color: #94a3b8; text-align: left; font-size: 11px; text-transform: uppercase;'>
-                                <th style='padding: 10px 12px;'>Producto</th>
-                                <th style='padding: 10px 12px;'>Código</th>
-                                <th style='padding: 10px 12px;'>Vencimiento</th>
-                                <th style='padding: 10px 12px;'>Stock</th>
-                                <th style='padding: 10px 12px; text-align: right;'>Pérdida Neta</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {$filasVencidas}
-                        </tbody>
-                    </table>
-                </div>
-            ";
+                ";
+            }
         }
 
         // 3. Bloque de Semáforo Rojo (Vencimiento en ≤ 7 días)
         $bloqueRojos = '';
-        if ($incRojos && $totalRojos > 0) {
-            $filasRojas = '';
-            foreach ($lotesRojosVigentes as $l) {
-                $dias = (int)$l['dias_restantes'];
-                $textoDias = $dias === 0 ? "<span style='color: #ef4444; font-weight: 800; background: rgba(239,68,68,0.2); padding: 2px 6px; border-radius: 4px;'>¡VENCE HOY!</span>" : "<span style='color: #f87171; font-weight: 700;'>Vence en {$dias}d</span>";
-                $riesgo = number_format($l['dinero_en_riesgo'], 0, ',', '.') . ' ' . $moneda;
-                $filasRojas .= "
-                    <tr style='border-bottom: 1px solid #334155;'>
-                        <td style='padding: 10px 12px; font-weight: bold; color: #ffffff;'>{$l['producto_nombre']}</td>
-                        <td style='padding: 10px 12px; color: #cbd5e1; font-family: monospace;'>{$l['codigo_barra']}</td>
-                        <td style='padding: 10px 12px; color: #cbd5e1;'>
-                            {$l['fecha_vencimiento']}<br>
-                            <small>{$textoDias}</small>
-                        </td>
-                        <td style='padding: 10px 12px; color: #cbd5e1;'>{$l['cantidad_actual']} unid. ({$l['ubicacion']})</td>
-                        <td style='padding: 10px 12px; color: #fca5a5; font-weight: bold; text-align: right;'>{$riesgo}</td>
-                    </tr>
-                ";
-            }
+        if ($incRojos) {
+            if ($totalRojos > 0) {
+                $filasRojas = '';
+                foreach ($lotesRojosVigentes as $l) {
+                    $dias = (int)$l['dias_restantes'];
+                    $textoDias = $dias === 0 ? "<span style='color: #ef4444; font-weight: 800; background: rgba(239,68,68,0.2); padding: 2px 6px; border-radius: 4px;'>¡VENCE HOY!</span>" : "<span style='color: #f87171; font-weight: 700;'>Vence en {$dias}d</span>";
+                    $riesgo = number_format($l['dinero_en_riesgo'], 0, ',', '.') . ' ' . $moneda;
+                    $filasRojas .= "
+                        <tr style='border-bottom: 1px solid #334155;'>
+                            <td style='padding: 10px 12px; font-weight: bold; color: #ffffff;'>{$l['producto_nombre']}</td>
+                            <td style='padding: 10px 12px; color: #cbd5e1; font-family: monospace;'>{$l['codigo_barra']}</td>
+                            <td style='padding: 10px 12px; color: #cbd5e1;'>
+                                {$l['fecha_vencimiento']}<br>
+                                <small>{$textoDias}</small>
+                            </td>
+                            <td style='padding: 10px 12px; color: #cbd5e1;'>{$l['cantidad_actual']} unid. ({$l['ubicacion']})</td>
+                            <td style='padding: 10px 12px; color: #fca5a5; font-weight: bold; text-align: right;'>{$riesgo}</td>
+                        </tr>
+                    ";
+                }
 
-            $bloqueRojos = "
-                <div style='margin-bottom: 24px;'>
-                    <div style='background: #3b0764; border-left: 4px solid #dc2626; padding: 12px 16px; border-radius: 8px 8px 0 0;'>
-                        <h3 style='margin: 0; font-size: 15px; color: #fca5a5;'>
-                            🔴 Semáforo Rojo — Vencimiento Crítico (≤ 7 días: {$totalRojos} lotes)
+                $bloqueRojos = "
+                    <div style='margin-bottom: 24px;'>
+                        <div style='background: #3b0764; border-left: 4px solid #dc2626; padding: 12px 16px; border-radius: 8px 8px 0 0;'>
+                            <h3 style='margin: 0; font-size: 15px; color: #fca5a5;'>
+                                🔴 Semáforo Rojo — Vencimiento Crítico (≤ 7 días: {$totalRojos} lotes)
+                            </h3>
+                            <p style='margin: 4px 0 0; font-size: 12px; color: #e9d5ff;'>
+                                Acción recomendada: Activar ofertas relámpago, carteles en caja o promociones 2x1 para recuperar el costo.
+                            </p>
+                        </div>
+                        <table width='100%' cellpadding='0' cellspacing='0' style='font-size: 13px; border-collapse: collapse; background: #0f172a; border-radius: 0 0 8px 8px;'>
+                            <thead>
+                                <tr style='background: #1e293b; color: #94a3b8; text-align: left; font-size: 11px; text-transform: uppercase;'>
+                                    <th style='padding: 10px 12px;'>Producto</th>
+                                    <th style='padding: 10px 12px;'>Código</th>
+                                    <th style='padding: 10px 12px;'>Vencimiento</th>
+                                    <th style='padding: 10px 12px;'>Stock</th>
+                                    <th style='padding: 10px 12px; text-align: right;'>Costo en Riesgo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {$filasRojas}
+                            </tbody>
+                        </table>
+                    </div>
+                ";
+            } else {
+                $bloqueRojos = "
+                    <div style='margin-bottom: 24px; background: #064e3b; border-left: 4px solid #10b981; padding: 14px 18px; border-radius: 8px;'>
+                        <h3 style='margin: 0; font-size: 15px; color: #a7f3d0;'>
+                            ✅ Semáforo Rojo (0 productos críticos)
                         </h3>
-                        <p style='margin: 4px 0 0; font-size: 12px; color: #e9d5ff;'>
-                            Acción recomendada: Activar ofertas relámpago, carteles en caja o promociones 2x1 para recuperar el costo.
+                        <p style='margin: 4px 0 0; font-size: 12px; color: #d1fae5;'>
+                            No hay lotes con vencimiento urgente en los próximos 7 días.
                         </p>
                     </div>
-                    <table width='100%' cellpadding='0' cellspacing='0' style='font-size: 13px; border-collapse: collapse; background: #0f172a; border-radius: 0 0 8px 8px;'>
-                        <thead>
-                            <tr style='background: #1e293b; color: #94a3b8; text-align: left; font-size: 11px; text-transform: uppercase;'>
-                                <th style='padding: 10px 12px;'>Producto</th>
-                                <th style='padding: 10px 12px;'>Código</th>
-                                <th style='padding: 10px 12px;'>Vencimiento</th>
-                                <th style='padding: 10px 12px;'>Stock</th>
-                                <th style='padding: 10px 12px; text-align: right;'>Costo en Riesgo</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {$filasRojas}
-                        </tbody>
-                    </table>
-                </div>
-            ";
+                ";
+            }
         }
 
         // 4. Bloque de Semáforo Amarillo (8 a 30 días)
         $bloqueAmarillos = '';
-        if ($incAmarillos && $totalAmarillos > 0) {
-            $filasAmarillas = '';
-            foreach ($lotesAmarillos as $l) {
-                $dias = (int)$l['dias_restantes'];
-                $riesgo = number_format($l['dinero_en_riesgo'], 0, ',', '.') . ' ' . $moneda;
-                $filasAmarillas .= "
-                    <tr style='border-bottom: 1px solid #334155;'>
-                        <td style='padding: 10px 12px; font-weight: bold; color: #ffffff;'>{$l['producto_nombre']}</td>
-                        <td style='padding: 10px 12px; color: #cbd5e1; font-family: monospace;'>{$l['codigo_barra']}</td>
-                        <td style='padding: 10px 12px; color: #cbd5e1;'>
-                            {$l['fecha_vencimiento']}<br>
-                            <small style='color: #fbbf24; font-weight: 600;'>En {$dias} días</small>
-                        </td>
-                        <td style='padding: 10px 12px; color: #cbd5e1;'>{$l['cantidad_actual']} unid. ({$l['ubicacion']})</td>
-                        <td style='padding: 10px 12px; color: #fcd34d; font-weight: 600; text-align: right;'>{$riesgo}</td>
-                    </tr>
-                ";
-            }
+        if ($incAmarillos) {
+            if ($totalAmarillos > 0) {
+                $filasAmarillas = '';
+                foreach ($lotesAmarillos as $l) {
+                    $dias = (int)$l['dias_restantes'];
+                    $riesgo = number_format($l['dinero_en_riesgo'], 0, ',', '.') . ' ' . $moneda;
+                    $filasAmarillas .= "
+                        <tr style='border-bottom: 1px solid #334155;'>
+                            <td style='padding: 10px 12px; font-weight: bold; color: #ffffff;'>{$l['producto_nombre']}</td>
+                            <td style='padding: 10px 12px; color: #cbd5e1; font-family: monospace;'>{$l['codigo_barra']}</td>
+                            <td style='padding: 10px 12px; color: #cbd5e1;'>
+                                {$l['fecha_vencimiento']}<br>
+                                <small style='color: #fbbf24; font-weight: 600;'>En {$dias} días</small>
+                            </td>
+                            <td style='padding: 10px 12px; color: #cbd5e1;'>{$l['cantidad_actual']} unid. ({$l['ubicacion']})</td>
+                            <td style='padding: 10px 12px; color: #fcd34d; font-weight: 600; text-align: right;'>{$riesgo}</td>
+                        </tr>
+                    ";
+                }
 
-            $bloqueAmarillos = "
-                <div style='margin-bottom: 24px;'>
-                    <div style='background: #451a03; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 8px 8px 0 0;'>
-                        <h3 style='margin: 0; font-size: 15px; color: #fde68a;'>
-                            🟡 Semáforo Amarillo — Alerta Preventiva (8 a 30 días: {$totalAmarillos} lotes)
+                $bloqueAmarillos = "
+                    <div style='margin-bottom: 24px;'>
+                        <div style='background: #451a03; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 8px 8px 0 0;'>
+                            <h3 style='margin: 0; font-size: 15px; color: #fde68a;'>
+                                🟡 Semáforo Amarillo — Alerta Preventiva (8 a 30 días: {$totalAmarillos} lotes)
+                            </h3>
+                            <p style='margin: 4px 0 0; font-size: 12px; color: #fef3c7;'>
+                                Rotación preventiva: Colocar al frente de la góndola o heladera para garantizar venta por rotación FIFO.
+                            </p>
+                        </div>
+                        <table width='100%' cellpadding='0' cellspacing='0' style='font-size: 13px; border-collapse: collapse; background: #0f172a; border-radius: 0 0 8px 8px;'>
+                            <thead>
+                                <tr style='background: #1e293b; color: #94a3b8; text-align: left; font-size: 11px; text-transform: uppercase;'>
+                                    <th style='padding: 10px 12px;'>Producto</th>
+                                    <th style='padding: 10px 12px;'>Código</th>
+                                    <th style='padding: 10px 12px;'>Vencimiento</th>
+                                    <th style='padding: 10px 12px;'>Stock</th>
+                                    <th style='padding: 10px 12px; text-align: right;'>Capital</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {$filasAmarillas}
+                            </tbody>
+                        </table>
+                    </div>
+                ";
+            } else {
+                $bloqueAmarillos = "
+                    <div style='margin-bottom: 24px; background: #064e3b; border-left: 4px solid #10b981; padding: 14px 18px; border-radius: 8px;'>
+                        <h3 style='margin: 0; font-size: 15px; color: #a7f3d0;'>
+                            ✅ Semáforo Amarillo (0 productos en alerta preventiva)
                         </h3>
-                        <p style='margin: 4px 0 0; font-size: 12px; color: #fef3c7;'>
-                            Rotación preventiva: Colocar al frente de la góndola o heladera para garantizar venta por rotación FIFO.
+                        <p style='margin: 4px 0 0; font-size: 12px; color: #d1fae5;'>
+                            No hay lotes con vencimiento entre 8 y 30 días.
                         </p>
                     </div>
-                    <table width='100%' cellpadding='0' cellspacing='0' style='font-size: 13px; border-collapse: collapse; background: #0f172a; border-radius: 0 0 8px 8px;'>
-                        <thead>
-                            <tr style='background: #1e293b; color: #94a3b8; text-align: left; font-size: 11px; text-transform: uppercase;'>
-                                <th style='padding: 10px 12px;'>Producto</th>
-                                <th style='padding: 10px 12px;'>Código</th>
-                                <th style='padding: 10px 12px;'>Vencimiento</th>
-                                <th style='padding: 10px 12px;'>Stock</th>
-                                <th style='padding: 10px 12px; text-align: right;'>Capital</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {$filasAmarillas}
-                        </tbody>
-                    </table>
-                </div>
-            ";
+                ";
+            }
         }
 
         // 5. Bloque de Sugerencias de Acción Comercial
@@ -558,6 +600,34 @@ class ResendEmailService {
             ";
         }
 
+        // Estado vacío si el usuario desmarcó absolutamente todos los bloques
+        $bloqueVacio = '';
+        if (!$incFinanciero && !$incVencidos && !$incRojos && !$incAmarillos && !$incSugerencias) {
+            $bloqueVacio = "
+                <div style='background: #1e293b; border: 1px dashed #475569; border-radius: 12px; padding: 30px; text-align: center; margin-bottom: 24px;'>
+                    <div style='font-size: 32px; margin-bottom: 8px;'>📋</div>
+                    <strong style='color: #f1f5f9; font-size: 15px;'>Sin Bloques de Contenido Seleccionados</strong>
+                    <p style='margin: 8px auto 0; font-size: 13px; color: #94a3b8; max-width: 440px; line-height: 1.4;'>
+                        En la sección 'Qué Mandar' se desmarcaron todos los bloques de información. Podés activar los filtros deseados (Balance, Vencidos, Rojos, etc.) desde tu panel de configuración.
+                    </p>
+                </div>
+            ";
+        }
+
+        // Determinar título contextual según bloques seleccionados
+        $tituloReporte = "Semáforo de Vencimientos & Mermas";
+        if ($incFinanciero && !$incVencidos && !$incRojos && !$incAmarillos && !$incSugerencias) {
+            $tituloReporte = "Balance Financiero & Capital en Riesgo";
+        } elseif ($incVencidos && !$incRojos && !$incAmarillos && !$incFinanciero && !$incSugerencias) {
+            $tituloReporte = "Mercadería Ya Vencida — Retiro Obligatorio";
+        } elseif ($incRojos && !$incVencidos && !$incAmarillos && !$incFinanciero && !$incSugerencias) {
+            $tituloReporte = "Semáforo Rojo — Productos Críticos (≤ 7 días)";
+        } elseif ($incAmarillos && !$incVencidos && !$incRojos && !$incFinanciero && !$incSugerencias) {
+            $tituloReporte = "Semáforo Amarillo — Alerta Preventiva FIFO";
+        } elseif ($incSugerencias && !$incVencidos && !$incRojos && !$incAmarillos && !$incFinanciero) {
+            $tituloReporte = "Plan de Acción Comercial & Tips Operativos";
+        }
+
         // Destinatarios info en cabecera
         $copiaTexto = !empty($emailsCopia) ? "<br><span style='color: #94a3b8;'>Con copia a: " . htmlspecialchars($emailsCopia) . "</span>" : "";
 
@@ -567,7 +637,7 @@ class ResendEmailService {
         <head>
             <meta charset='utf-8'>
             <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-            <title>Reporte de Vencimientos - {$nombreNegocio}</title>
+            <title>{$tituloReporte} - {$nombreNegocio}</title>
         </head>
         <body style='margin: 0; padding: 0; background-color: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;'>
             <table width='100%' cellpadding='0' cellspacing='0' style='background-color: #0b0f19; padding: 25px 10px;'>
@@ -581,14 +651,22 @@ class ResendEmailService {
                                         <tr>
                                             <td>
                                                 <div style='display: inline-block; background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; margin-bottom: 8px;'>
-                                                    🚦 Expiry • Reporte Inteligente
+                                                    🚦 Expiry • Reporte Filtrado
                                                 </div>
                                                 <h1 style='margin: 0; font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px;'>
-                                                    Semáforo de Vencimientos & Mermas
+                                                    {$tituloReporte}
                                                 </h1>
                                                 <p style='margin: 6px 0 0; font-size: 13px; color: #cbd5e1;'>
                                                     {$nombreNegocio} • Para: <strong>{$nombreUsuario}</strong> {$copiaTexto}
                                                 </p>
+                                                <!-- Badge Destacado de Quién Mandó y su Cargo / Rol -->
+                                                <div style='margin-top: 12px; display: inline-block; background: rgba(15, 23, 42, 0.75); border: 1px solid #334155; padding: 6px 12px; border-radius: 8px;'>
+                                                    <span style='color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;'>📤 Despachado por:</span>
+                                                    <strong style='color: #ffffff; font-size: 12px; margin-left: 4px;'>{$remitenteNombre}</strong>
+                                                    <span style='background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;'>
+                                                        💼 {$remitenteCargo}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td align='right' style='vertical-align: top; font-size: 12px; color: #94a3b8;'>
                                                 <span style='background: rgba(15, 23, 42, 0.6); padding: 6px 12px; border-radius: 8px; border: 1px solid #334155; display: inline-block;'>
@@ -608,6 +686,43 @@ class ResendEmailService {
                                     {$bloqueRojos}
                                     {$bloqueAmarillos}
                                     {$bloqueSugerencias}
+                                    {$bloqueVacio}
+
+                                    <!-- Bloque Institucional: Quién Mandó y Cargo o Rol en el Negocio -->
+                                    <table width='100%' cellpadding='0' cellspacing='0' style='margin-top: 20px; background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 12px;'>
+                                        <tr>
+                                            <td style='padding: 18px 24px;'>
+                                                <table width='100%'>
+                                                    <tr>
+                                                        <td style='vertical-align: middle;'>
+                                                            <div style='font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; font-weight: 700;'>
+                                                                👤 Responsable de Emisión del Reporte
+                                                            </div>
+                                                            <div style='font-size: 16px; font-weight: 800; color: #ffffff; margin-top: 3px;'>
+                                                                {$remitenteNombre}
+                                                            </div>
+                                                            <div style='font-size: 13px; color: #38bdf8; font-weight: 700; margin-top: 3px;'>
+                                                                💼 Cargo o Rol en el Negocio: <span style='color: #bae6fd;'>{$remitenteCargo}</span>
+                                                            </div>
+                                                            <div style='font-size: 12px; color: #94a3b8; margin-top: 6px; line-height: 1.4;'>
+                                                                Informe emitido y validado oficialmente desde el sistema <strong>Expiry</strong>.
+                                                            </div>
+                                                        </td>
+                                                        <td align='right' style='vertical-align: middle; width: 140px;'>
+                                                            <div style='background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; border-radius: 8px; padding: 8px 12px; text-align: center;'>
+                                                                <span style='font-size: 11px; color: #34d399; font-weight: 800; text-transform: uppercase; display: block;'>
+                                                                    ✔ Autenticado
+                                                                </span>
+                                                                <span style='font-size: 10px; color: #94a3b8;'>
+                                                                    Control Oficial
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    </table>
                                 </td>
                             </tr>
 
@@ -616,7 +731,7 @@ class ResendEmailService {
                                 <td style='background-color: #0b0f19; padding: 22px 30px; text-align: center; border-top: 1px solid #1f2937; font-size: 12px; color: #64748b; line-height: 1.5;'>
                                     Informe emitido por el sistema <strong>Expiry</strong> a través de <strong>Resend API</strong>.<br>
                                     Frecuencia de entrega configurada: <strong>{$textoFrecuencia}</strong>.<br>
-                                    <small style='color: #475569;'>Para modificar destinatarios, horario o filtros, ingresá a la Configuración de Reportes desde tu panel administrativo.</small>
+                                    <small style='color: #475569;'>Para modificar destinatarios, horario o filtros, ingresá a la pestaña 'Qué Mandar' desde tu panel administrativo.</small>
                                 </td>
                             </tr>
                         </table>
@@ -629,27 +744,35 @@ class ResendEmailService {
     }
 
     /**
-     * Envía un correo de prueba simple para verificar la conexión con Resend
+     * Envía un correo de prueba simple para verificar la conexión con Resend / Brevo
      */
-    public static function sendTestEmail(string $to, string $nombreUsuario, string $nombreNegocio, ?string $cc = null): array {
+    public static function sendTestEmail(string $to, string $nombreUsuario, string $nombreNegocio, ?string $cc = null, string $remitenteNombre = '', string $remitenteCargo = ''): array {
         $subject = "✅ Prueba Exitosa de Reporte — Expiry ({$nombreNegocio})";
+        $remitenteNombre = !empty($remitenteNombre) ? htmlspecialchars($remitenteNombre) : htmlspecialchars($nombreUsuario ?: 'Administrador Propietario');
+        $remitenteCargo  = !empty($remitenteCargo) ? htmlspecialchars($remitenteCargo) : '👑 Dueño / Administrador General';
+
         $html = "
-            <div style='background: #0f172a; color: #f8fafc; padding: 30px; font-family: sans-serif; border-radius: 12px; max-width: 520px; margin: 0 auto; border: 1px solid #334155;'>
+            <div style='background: #0f172a; color: #f8fafc; padding: 30px; font-family: sans-serif; border-radius: 12px; max-width: 540px; margin: 0 auto; border: 1px solid #334155;'>
                 <div style='background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #10b981; display: inline-block; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 11px; text-transform: uppercase;'>
-                    Conexión Resend Verificada
+                    Conexión Verificada
                 </div>
                 <h2 style='color: #ffffff; margin: 16px 0 8px;'>🚦 Conexión de Reportes Operativa</h2>
                 <p style='color: #cbd5e1; font-size: 14px; margin-top: 0;'>Hola <strong>{$nombreUsuario}</strong>,</p>
                 <p style='color: #94a3b8; font-size: 13px; line-height: 1.5;'>
-                    El motor de avisos automáticos de <strong>{$nombreNegocio}</strong> está configurado y listo para entregar los reportes según la frecuencia seleccionada.
+                    El motor de avisos automáticos de <strong>{$nombreNegocio}</strong> está configurado y listo para entregar los reportes según la frecuencia y los módulos seleccionados.
                 </p>
                 <div style='background: #1e293b; padding: 14px 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981; font-size: 13px;'>
                     <div style='color: #ffffff; font-weight: bold;'>Destinatario Principal:</div>
                     <div style='color: #94a3b8;'>{$to}</div>
                     " . (!empty($cc) ? "<div style='color: #ffffff; font-weight: bold; margin-top: 8px;'>Destinatarios en Copia (CC):</div><div style='color: #94a3b8;'>{$cc}</div>" : "") . "
+                    <div style='margin-top: 12px; padding-top: 10px; border-top: 1px solid #334155;'>
+                        <div style='color: #94a3b8; font-size: 11px; text-transform: uppercase;'>👤 Despachado por:</div>
+                        <div style='color: #ffffff; font-weight: bold; font-size: 14px; margin-top: 2px;'>{$remitenteNombre}</div>
+                        <div style='color: #38bdf8; font-size: 12px; font-weight: 700; margin-top: 2px;'>💼 Cargo o Rol en el Negocio: {$remitenteCargo}</div>
+                    </div>
                 </div>
                 <p style='font-size: 12px; color: #64748b; margin-bottom: 0;'>
-                    Si recibiste este correo, tu configuración es totalmente funcional.
+                    Si recibiste este correo, tu configuración y credenciales son 100% funcionales.
                 </p>
             </div>
         ";

@@ -1625,7 +1625,7 @@ require_once __DIR__ . '/api/security_helper.php';
 
                         <div class="report-content-toggles">
                             <!-- Toggle 1: Vencidos -->
-                            <div class="report-toggle-card item-toggle">
+                            <div class="report-toggle-card item-toggle active-toggle" id="cardToggleVencidos">
                                 <div class="toggle-card-info">
                                     <strong class="toggle-card-title">
                                         <span class="badge-dot dot-black"></span> Mercadería Ya Vencida
@@ -1633,13 +1633,13 @@ require_once __DIR__ . '/api/security_helper.php';
                                     <span class="toggle-card-desc">Lista de productos caducados para retiro urgente de góndola.</span>
                                 </div>
                                 <label class="switch-toggle" for="chkIncVencidos">
-                                    <input type="checkbox" id="chkIncVencidos" name="incluir_vencidos" value="1" checked>
+                                    <input type="checkbox" id="chkIncVencidos" name="incluir_vencidos" value="1" checked onchange="App.onFiltroToggleChange(this)">
                                     <span class="switch-slider"></span>
                                 </label>
                             </div>
 
                             <!-- Toggle 2: Semáforo Rojo -->
-                            <div class="report-toggle-card item-toggle">
+                            <div class="report-toggle-card item-toggle active-toggle" id="cardToggleRojos">
                                 <div class="toggle-card-info">
                                     <strong class="toggle-card-title">
                                         <span class="badge-dot dot-red"></span> Semáforo Rojo (≤ 7 días)
@@ -1647,13 +1647,13 @@ require_once __DIR__ . '/api/security_helper.php';
                                     <span class="toggle-card-desc">Lotes con vencimiento crítico para liquidación o promoción 2x1.</span>
                                 </div>
                                 <label class="switch-toggle" for="chkIncRojos">
-                                    <input type="checkbox" id="chkIncRojos" name="incluir_rojos" value="1" checked>
+                                    <input type="checkbox" id="chkIncRojos" name="incluir_rojos" value="1" checked onchange="App.onFiltroToggleChange(this)">
                                     <span class="switch-slider"></span>
                                 </label>
                             </div>
 
                             <!-- Toggle 3: Semáforo Amarillo -->
-                            <div class="report-toggle-card item-toggle">
+                            <div class="report-toggle-card item-toggle active-toggle" id="cardToggleAmarillos">
                                 <div class="toggle-card-info">
                                     <strong class="toggle-card-title">
                                         <span class="badge-dot dot-yellow"></span> Semáforo Amarillo (8 a 30 días)
@@ -1661,13 +1661,13 @@ require_once __DIR__ . '/api/security_helper.php';
                                     <span class="toggle-card-desc">Alerta preventiva para aplicar rotación en góndola (FIFO).</span>
                                 </div>
                                 <label class="switch-toggle" for="chkIncAmarillos">
-                                    <input type="checkbox" id="chkIncAmarillos" name="incluir_amarillos" value="1" checked>
+                                    <input type="checkbox" id="chkIncAmarillos" name="incluir_amarillos" value="1" checked onchange="App.onFiltroToggleChange(this)">
                                     <span class="switch-slider"></span>
                                 </label>
                             </div>
 
                             <!-- Toggle 4: Balance Financiero -->
-                            <div class="report-toggle-card item-toggle">
+                            <div class="report-toggle-card item-toggle active-toggle" id="cardToggleFinanciero">
                                 <div class="toggle-card-info">
                                     <strong class="toggle-card-title">
                                         <span class="badge-dot dot-green"></span> Balance Financiero y Capital en Riesgo
@@ -1675,13 +1675,13 @@ require_once __DIR__ . '/api/security_helper.php';
                                     <span class="toggle-card-desc">Totalización de dinero invertido en mercadería vulnerable.</span>
                                 </div>
                                 <label class="switch-toggle" for="chkIncFinanciero">
-                                    <input type="checkbox" id="chkIncFinanciero" name="incluir_financiero" value="1" checked>
+                                    <input type="checkbox" id="chkIncFinanciero" name="incluir_financiero" value="1" checked onchange="App.onFiltroToggleChange(this)">
                                     <span class="switch-slider"></span>
                                 </label>
                             </div>
 
                             <!-- Toggle 5: Sugerencias Comerciales -->
-                            <div class="report-toggle-card item-toggle">
+                            <div class="report-toggle-card item-toggle active-toggle" id="cardToggleSugerencias">
                                 <div class="toggle-card-info">
                                     <strong class="toggle-card-title">
                                         <span class="badge-dot dot-blue"></span> Recomendaciones Comerciales
@@ -1689,9 +1689,65 @@ require_once __DIR__ . '/api/security_helper.php';
                                     <span class="toggle-card-desc">Tips y pasos rápidos de acción recomendados para el personal.</span>
                                 </div>
                                 <label class="switch-toggle" for="chkIncSugerencias">
-                                    <input type="checkbox" id="chkIncSugerencias" name="incluir_sugerencias" value="1" checked>
+                                    <input type="checkbox" id="chkIncSugerencias" name="incluir_sugerencias" value="1" checked onchange="App.onFiltroToggleChange(this)">
                                     <span class="switch-slider"></span>
                                 </label>
+                            </div>
+                        </div>
+
+                        <!-- Responsable de Emisión del Reporte & Cargo o Rol en el Negocio -->
+                        <div class="report-sender-card">
+                            <div class="sender-card-header">
+                                <div class="sender-card-title-wrap">
+                                    <div class="sender-card-icon">
+                                        <i class="fas fa-id-badge"></i>
+                                    </div>
+                                    <div>
+                                        <strong class="sender-card-title">Responsable de Emisión del Reporte</strong>
+                                        <span class="sender-card-subtitle">Firma institucional que se mostrará en la cabecera y pie del correo.</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="sender-card-body">
+                                <div class="add-contact-fields-grid">
+                                    <!-- Campo 1: Nombre de Quién Envía -->
+                                    <div class="report-form-group">
+                                        <label class="report-label required-label" for="notifRemitenteNombre">
+                                            <i class="fas fa-user-tie"></i> Quién Envía el Reporte <span class="required-asterisk">*</span>:
+                                        </label>
+                                        <div class="report-input-wrapper">
+                                            <i class="fas fa-user report-input-icon"></i>
+                                            <input type="text" id="notifRemitenteNombre" name="remitente_nombre" class="report-input-email" placeholder="Ej: Román Riveros" required>
+                                        </div>
+                                    </div>
+
+                                    <!-- Campo 2: Cargo o Rol en el Negocio (Obligatorio) -->
+                                    <div class="report-form-group">
+                                        <label class="report-label required-label" for="notifRemitenteCargo">
+                                            <i class="fas fa-briefcase"></i> Cargo o Rol en el Negocio <span class="required-asterisk">*</span>:
+                                        </label>
+                                        <div class="report-input-wrapper">
+                                            <i class="fas fa-tag report-input-icon"></i>
+                                            <select id="notifRemitenteCargo" name="remitente_cargo" class="report-input-select" required>
+                                                <option value="Dueño / Administrador">👑 Dueño / Administrador General</option>
+                                                <option value="Repositor de Góndola">📦 Repositor / Góndola</option>
+                                                <option value="Encargado de Compras">🛒 Encargado de Compras / Proveedores</option>
+                                                <option value="Cajero / Empleado">🏷️ Cajero / Atención al Cliente</option>
+                                                <option value="Contador / Finanzas">📊 Contador / Control de Mermas</option>
+                                                <option value="Socio Comercial">🤝 Socio / Gerente de Sucursal</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Selección Rápida de Emisores del Equipo -->
+                                <div class="quick-senders-box" id="quickSendersBox">
+                                    <span class="quick-senders-label"><i class="fas fa-bolt"></i> Elegir rápidamente emisor registrado:</span>
+                                    <div class="quick-senders-chips" id="quickSendersChips">
+                                        <!-- Se puebla dinámicamente -->
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

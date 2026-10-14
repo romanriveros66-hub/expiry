@@ -1247,24 +1247,42 @@ const App = (() => {
         const freqRadio = document.querySelector(`input[name="frecuencia_reporte"][value="${freqVal}"]`);
         if (freqRadio) freqRadio.checked = true;
 
-        // Filtros de qué incluir
-        const chkVencidos = document.getElementById('chkIncVencidos');
-        if (chkVencidos) chkVencidos.checked = cfg.incluir_vencidos !== 0;
+        // Filtros de qué incluir y estados visuales
+        const toggleMap = [
+          { id: 'chkIncVencidos', cardId: 'cardToggleVencidos', val: cfg.incluir_vencidos },
+          { id: 'chkIncRojos', cardId: 'cardToggleRojos', val: cfg.incluir_rojos },
+          { id: 'chkIncAmarillos', cardId: 'cardToggleAmarillos', val: cfg.incluir_amarillos },
+          { id: 'chkIncFinanciero', cardId: 'cardToggleFinanciero', val: cfg.incluir_financiero },
+          { id: 'chkIncSugerencias', cardId: 'cardToggleSugerencias', val: cfg.incluir_sugerencias }
+        ];
 
-        const chkRojos = document.getElementById('chkIncRojos');
-        if (chkRojos) chkRojos.checked = cfg.incluir_rojos !== 0;
+        toggleMap.forEach(item => {
+          const el = document.getElementById(item.id);
+          const card = document.getElementById(item.cardId) || el?.closest('.report-toggle-card');
+          if (el) {
+            el.checked = item.val !== 0;
+            if (card) {
+              card.classList.toggle('active-toggle', el.checked);
+              card.classList.toggle('inactive-toggle', !el.checked);
+            }
+          }
+        });
 
-        const chkAmarillos = document.getElementById('chkIncAmarillos');
-        if (chkAmarillos) chkAmarillos.checked = cfg.incluir_amarillos !== 0;
+        // Configurar remitente y su cargo en pestaña 4 (Qué Mandar)
+        const remitenteNombreInput = document.getElementById('notifRemitenteNombre');
+        const remitenteCargoSelect = document.getElementById('notifRemitenteCargo');
+        if (remitenteNombreInput && !remitenteNombreInput.value) {
+          remitenteNombreInput.value = cfg.remitente_nombre || cfg.user_nombre || state.user?.nombre || 'Administrador Propietario';
+        }
+        if (remitenteCargoSelect && cfg.remitente_cargo) {
+          remitenteCargoSelect.value = cfg.remitente_cargo;
+        }
 
-        const chkFinanciero = document.getElementById('chkIncFinanciero');
-        if (chkFinanciero) chkFinanciero.checked = cfg.incluir_financiero !== 0;
-
-        const chkSugerencias = document.getElementById('chkIncSugerencias');
-        if (chkSugerencias) chkSugerencias.checked = cfg.incluir_sugerencias !== 0;
-
-        // Renderizar lista interactiva de contactos
+        // Renderizar lista interactiva de contactos en Pestaña 1
         renderContactosList(res.contactos || []);
+
+        // Renderizar chips de emisores rápidos en Pestaña 4
+        renderQuickSenders(res.contactos || [], cfg.user_nombre || state.user?.nombre);
       }
     } catch (e) {
       console.error('Error cargando configuración de notificaciones:', e);
@@ -1276,10 +1294,127 @@ const App = (() => {
     if (modal) modal.classList.add('hidden');
   }
 
+  // Controlador reactivo al alternar cualquiera de las 5 opciones de "Qué Mandar"
+  async function onFiltroToggleChange(input) {
+    if (!input) return;
+    const card = input.closest('.report-toggle-card');
+    if (card) {
+      card.classList.toggle('active-toggle', input.checked);
+      card.classList.toggle('inactive-toggle', !input.checked);
+    }
+
+    const toggles = [
+      { id: 'chkIncVencidos', name: 'Mercadería Ya Vencida' },
+      { id: 'chkIncRojos', name: 'Semáforo Rojo' },
+      { id: 'chkIncAmarillos', name: 'Semáforo Amarillo' },
+      { id: 'chkIncFinanciero', name: 'Balance Financiero' },
+      { id: 'chkIncSugerencias', name: 'Recomendaciones Comerciales' }
+    ];
+
+    const activos = toggles.filter(t => {
+      const el = document.getElementById(t.id);
+      return el && el.checked;
+    });
+
+    if (activos.length === 0) {
+      showToast('⚠️ Desmarcaste todas las opciones. El correo se enviará vacío.', 'warning');
+    } else if (activos.length === 1) {
+      showToast(`🎯 Filtro exclusivo activo: El correo solo enviará "${activos[0].name}".`, 'info');
+    } else {
+      showToast(`✔ Filtro actualizado: ${activos.length} bloques seleccionados para el reporte.`, 'success');
+    }
+
+    // Auto-guardado en background para persistir de inmediato en BD
+    try {
+      const formData = new FormData();
+      formData.append('incluir_vencidos', document.getElementById('chkIncVencidos')?.checked ? '1' : '0');
+      formData.append('incluir_rojos', document.getElementById('chkIncRojos')?.checked ? '1' : '0');
+      formData.append('incluir_amarillos', document.getElementById('chkIncAmarillos')?.checked ? '1' : '0');
+      formData.append('incluir_financiero', document.getElementById('chkIncFinanciero')?.checked ? '1' : '0');
+      formData.append('incluir_sugerencias', document.getElementById('chkIncSugerencias')?.checked ? '1' : '0');
+
+      await safeFetchJson('api/notificaciones.php?action=save_filtros', {
+        method: 'POST',
+        body: formData
+      });
+    } catch (e) {
+      // Ignorar fallo de sincronización silenciosa
+    }
+  }
+
+  function renderQuickSenders(contactos, currentUserNombre) {
+    const container = document.getElementById('quickSendersChips');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const list = [];
+    const mainUser = currentUserNombre || state.user?.nombre || 'Administrador Propietario';
+    list.push({ nombre: mainUser, cargo: 'Dueño / Administrador', icon: '👑' });
+
+    if (Array.isArray(contactos)) {
+      contactos.forEach(c => {
+        if (c.activo && c.nombre) {
+          if (!list.some(item => item.nombre.toLowerCase() === c.nombre.toLowerCase())) {
+            list.push({
+              nombre: c.nombre,
+              cargo: c.cargo || 'Repositor de Góndola',
+              icon: c.tipo_destinatario === 'PRINCIPAL' ? '👑' : '👤'
+            });
+          }
+        }
+      });
+    }
+
+    list.forEach(item => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'quick-chip-btn';
+      btn.innerHTML = `<span>${item.icon}</span> <strong>${escapeHtml(item.nombre)}</strong> <small>(${escapeHtml(item.cargo)})</small>`;
+      btn.onclick = () => {
+        seleccionarRemitente(item.nombre, item.cargo);
+      };
+      container.appendChild(btn);
+    });
+  }
+
+  function seleccionarRemitente(nombre, cargo) {
+    const nombreInput = document.getElementById('notifRemitenteNombre');
+    const cargoSelect = document.getElementById('notifRemitenteCargo');
+    if (nombreInput) nombreInput.value = nombre;
+    if (cargoSelect) {
+      let matched = false;
+      for (let i = 0; i < cargoSelect.options.length; i++) {
+        const opt = cargoSelect.options[i];
+        if (opt.value.toLowerCase() === cargo.toLowerCase() || opt.text.toLowerCase().includes(cargo.toLowerCase())) {
+          cargoSelect.selectedIndex = i;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched && cargoSelect.options.length > 0) {
+        cargoSelect.selectedIndex = 0;
+      }
+    }
+    showToast(`👤 Emisor asignado: ${nombre} (${cargo})`, 'info');
+  }
+
   async function guardarConfiguracionEmail(e) {
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
+
+    // Garantizar que los 5 toggles de Qué Mandar se envíen de forma explícita
+    formData.set('filtros_explicit', '1');
+    formData.set('incluir_vencidos', document.getElementById('chkIncVencidos')?.checked ? '1' : '0');
+    formData.set('incluir_rojos', document.getElementById('chkIncRojos')?.checked ? '1' : '0');
+    formData.set('incluir_amarillos', document.getElementById('chkIncAmarillos')?.checked ? '1' : '0');
+    formData.set('incluir_financiero', document.getElementById('chkIncFinanciero')?.checked ? '1' : '0');
+    formData.set('incluir_sugerencias', document.getElementById('chkIncSugerencias')?.checked ? '1' : '0');
+
+    const remitenteNombre = document.getElementById('notifRemitenteNombre')?.value.trim();
+    const remitenteCargo = document.getElementById('notifRemitenteCargo')?.value.trim();
+    if (remitenteNombre) formData.set('remitente_nombre', remitenteNombre);
+    if (remitenteCargo) formData.set('remitente_cargo', remitenteCargo);
 
     const submitBtn = document.getElementById('btnSaveConfigEmail') || form.querySelector('button[type="submit"]');
     const originalText = submitBtn.innerHTML;
@@ -1339,6 +1474,12 @@ const App = (() => {
       if (methodRadio) formData.append('email_metodo', methodRadio.value);
     }
 
+    // Remitente y Cargo en el Negocio
+    const remitenteNombre = document.getElementById('notifRemitenteNombre')?.value.trim();
+    const remitenteCargo = document.getElementById('notifRemitenteCargo')?.value.trim();
+    if (remitenteNombre) formData.append('remitente_nombre', remitenteNombre);
+    if (remitenteCargo) formData.append('remitente_cargo', remitenteCargo);
+
     try {
       const res = await safeFetchJson('api/notificaciones.php?action=send_test', {
         method: 'POST',
@@ -1381,6 +1522,20 @@ const App = (() => {
     if (ccInput && ccInput.value) {
       formData.set('emails_copia', ccInput.value.trim());
     }
+
+    // Indicador explícito de filtros para enviar SOLO lo seleccionado
+    formData.set('filtros_explicit', '1');
+    formData.set('incluir_vencidos', document.getElementById('chkIncVencidos')?.checked ? '1' : '0');
+    formData.set('incluir_rojos', document.getElementById('chkIncRojos')?.checked ? '1' : '0');
+    formData.set('incluir_amarillos', document.getElementById('chkIncAmarillos')?.checked ? '1' : '0');
+    formData.set('incluir_financiero', document.getElementById('chkIncFinanciero')?.checked ? '1' : '0');
+    formData.set('incluir_sugerencias', document.getElementById('chkIncSugerencias')?.checked ? '1' : '0');
+
+    // Remitente y su Cargo o Rol
+    const remitenteNombre = document.getElementById('notifRemitenteNombre')?.value.trim();
+    const remitenteCargo = document.getElementById('notifRemitenteCargo')?.value.trim();
+    if (remitenteNombre) formData.set('remitente_nombre', remitenteNombre);
+    if (remitenteCargo) formData.set('remitente_cargo', remitenteCargo);
 
     try {
       const res = await safeFetchJson('api/notificaciones.php?action=send_report', {
@@ -1623,6 +1778,8 @@ const App = (() => {
     toggleSmtpPassVisibility,
     toggleGuiaGmail,
     probarConexionSMTP,
+    onFiltroToggleChange,
+    seleccionarRemitente,
     showAppView,
     showLandingView
   };

@@ -79,7 +79,8 @@ switch ($action) {
                 'incluir_amarillos'   => (int)($cfg['incluir_amarillos'] ?? 1),
                 'incluir_financiero'  => (int)($cfg['incluir_financiero'] ?? 1),
                 'incluir_sugerencias' => (int)($cfg['incluir_sugerencias'] ?? 1),
-                'total_alertas'       => (int)($count['total'] ?? 0)
+                'total_alertas'       => (int)($count['total'] ?? 0),
+                'user_nombre'         => $user['nombre'] ?? 'Administrador Propietario'
             ],
             'contactos' => $contactos,
             'csrf_token' => getCsrfToken()
@@ -285,11 +286,11 @@ switch ($action) {
         $frecuenciaReporte  = trim($_POST['frecuencia_reporte'] ?? 'DIARIO');
         $horaReporte        = trim($_POST['hora_reporte'] ?? '08:00');
         $emailsCopiaRaw     = trim($_POST['emails_copia'] ?? '');
-        $incluirVencidos    = isset($_POST['incluir_vencidos']) ? 1 : 0;
-        $incluirRojos       = isset($_POST['incluir_rojos']) ? 1 : 0;
-        $incluirAmarillos   = isset($_POST['incluir_amarillos']) ? 1 : 0;
-        $incluirFinanciero  = isset($_POST['incluir_financiero']) ? 1 : 0;
-        $incluirSugerencias = isset($_POST['incluir_sugerencias']) ? 1 : 0;
+        $incluirVencidos    = (!empty($_POST['incluir_vencidos']) && $_POST['incluir_vencidos'] !== '0') ? 1 : 0;
+        $incluirRojos       = (!empty($_POST['incluir_rojos']) && $_POST['incluir_rojos'] !== '0') ? 1 : 0;
+        $incluirAmarillos   = (!empty($_POST['incluir_amarillos']) && $_POST['incluir_amarillos'] !== '0') ? 1 : 0;
+        $incluirFinanciero  = (!empty($_POST['incluir_financiero']) && $_POST['incluir_financiero'] !== '0') ? 1 : 0;
+        $incluirSugerencias = (!empty($_POST['incluir_sugerencias']) && $_POST['incluir_sugerencias'] !== '0') ? 1 : 0;
         $apiKey             = trim($_POST['resend_api_key'] ?? '');
 
         // Si emailDestino viene vacío, no sobreescribir con vacío: resolver de contactos_reporte o configuracion actual
@@ -430,6 +431,35 @@ switch ($action) {
         }
         break;
 
+    case 'save_filtros':
+        $csrf = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+        if (!validateCsrfToken($csrf)) {
+            jsonResponse(['status' => 'error', 'message' => 'Token CSRF inválido.'], 403);
+        }
+
+        $incVencidos    = (!empty($_POST['incluir_vencidos']) && $_POST['incluir_vencidos'] !== '0') ? 1 : 0;
+        $incRojos       = (!empty($_POST['incluir_rojos']) && $_POST['incluir_rojos'] !== '0') ? 1 : 0;
+        $incAmarillos   = (!empty($_POST['incluir_amarillos']) && $_POST['incluir_amarillos'] !== '0') ? 1 : 0;
+        $incFinanciero  = (!empty($_POST['incluir_financiero']) && $_POST['incluir_financiero'] !== '0') ? 1 : 0;
+        $incSugerencias = (!empty($_POST['incluir_sugerencias']) && $_POST['incluir_sugerencias'] !== '0') ? 1 : 0;
+
+        try {
+            $stmt = $pdo->prepare("
+                UPDATE configuracion 
+                SET incluir_vencidos = ?, incluir_rojos = ?, incluir_amarillos = ?, incluir_financiero = ?, incluir_sugerencias = ? 
+                WHERE id = 1
+            ");
+            $stmt->execute([$incVencidos, $incRojos, $incAmarillos, $incFinanciero, $incSugerencias]);
+            jsonResponse([
+                'status'  => 'success',
+                'message' => 'Filtros de contenido actualizados',
+                'csrf_token' => getCsrfToken()
+            ]);
+        } catch (Exception $e) {
+            jsonResponse(['status' => 'error', 'message' => 'Error al guardar filtros: ' . $e->getMessage()], 500);
+        }
+        break;
+
     case 'test_smtp':
         $csrf = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
         if (!validateCsrfToken($csrf)) {
@@ -526,7 +556,17 @@ switch ($action) {
             }
         }
 
-        $resultado = ResendEmailService::sendTestEmail($emailDestino, $user['nombre'], $nombreNegocio, $emailsCopia);
+        $remitenteNombre = !empty($_POST['remitente_nombre']) ? trim($_POST['remitente_nombre']) : ($user['nombre'] ?? 'Administrador Propietario');
+        $remitenteCargo  = !empty($_POST['remitente_cargo']) ? trim($_POST['remitente_cargo']) : '';
+
+        if (empty($remitenteCargo)) {
+            $stmtC = $pdo->prepare("SELECT cargo FROM contactos_reporte WHERE email = ? OR nombre = ? LIMIT 1");
+            $stmtC->execute([$user['email'] ?? '', $user['nombre'] ?? '']);
+            $foundC = $stmtC->fetchColumn();
+            $remitenteCargo = !empty($foundC) ? $foundC : '👑 Dueño / Administrador General';
+        }
+
+        $resultado = ResendEmailService::sendTestEmail($emailDestino, $user['nombre'], $nombreNegocio, $emailsCopia, $remitenteNombre, $remitenteCargo);
 
         if ($resultado['success']) {
             $metodo = $resultado['metodo'] ?? 'RESEND';
@@ -534,11 +574,11 @@ switch ($action) {
             $recipientsList = implode(', ', $recipients);
 
             if ($metodo === 'SMTP' || $metodo === 'SMTP_AUTORESCUE') {
-                $msg = "✅ ¡Correo de prueba enviado con éxito a TODOS los destinatarios seleccionados (" . count($recipients) . "): {$recipientsList} vía Gmail SMTP!";
+                $msg = "✅ ¡Correo de prueba enviado con éxito a TODOS los destinatarios seleccionados (" . count($recipients) . "): {$recipientsList} vía Gmail SMTP! Despachado por: {$remitenteNombre} ({$remitenteCargo}).";
             } elseif (!empty($resultado['sandbox_fallback'])) {
                 $msg = "⚠️ Entregado únicamente a {$resultado['enviado_a']}. 🛑 Resend en modo prueba gratuito (onboarding@resend.dev) bloqueó el envío a: " . implode(', ', $resultado['omitidos']) . ". Para enviar a TODOS los seleccionados sin restricción, activá el motor 'Gmail / SMTP' en la pestaña Motor de Envío.";
             } else {
-                $msg = "✅ ¡Correo de prueba enviado con éxito a {$recipientsList} vía Resend API!";
+                $msg = "✅ ¡Correo de prueba enviado con éxito a {$recipientsList} vía Resend/Brevo API! Despachado por: {$remitenteNombre} ({$remitenteCargo}).";
             }
 
             jsonResponse([
@@ -637,16 +677,52 @@ switch ($action) {
         $stmtResumen = $pdo->query("SELECT * FROM v_resumen_dashboard LIMIT 1");
         $resumen = $stmtResumen->fetch() ?: [];
 
+        // Resolver quién envía y su Cargo o Rol
+        $remitenteNombre = !empty($_POST['remitente_nombre']) ? trim($_POST['remitente_nombre']) : ($user['nombre'] ?? 'Administrador Propietario');
+        $remitenteCargo  = !empty($_POST['remitente_cargo']) ? trim($_POST['remitente_cargo']) : '';
+
+        if (empty($remitenteCargo)) {
+            $stmtC = $pdo->prepare("SELECT cargo FROM contactos_reporte WHERE email = ? OR nombre = ? LIMIT 1");
+            $stmtC->execute([$user['email'] ?? '', $user['nombre'] ?? '']);
+            $foundC = $stmtC->fetchColumn();
+            $remitenteCargo = !empty($foundC) ? $foundC : '👑 Dueño / Administrador General';
+        }
+
+        // Detección estricta de filtros de contenido seleccionados
+        $hasExplicit = isset($_POST['filtros_explicit']) 
+            || isset($_POST['incluir_vencidos']) 
+            || isset($_POST['incluir_rojos']) 
+            || isset($_POST['incluir_amarillos']) 
+            || isset($_POST['incluir_financiero']) 
+            || isset($_POST['incluir_sugerencias']);
+
+        $incVencidos    = $hasExplicit ? (!empty($_POST['incluir_vencidos']) ? 1 : 0) : (int)($cfg['incluir_vencidos'] ?? 1);
+        $incRojos       = $hasExplicit ? (!empty($_POST['incluir_rojos']) ? 1 : 0) : (int)($cfg['incluir_rojos'] ?? 1);
+        $incAmarillos   = $hasExplicit ? (!empty($_POST['incluir_amarillos']) ? 1 : 0) : (int)($cfg['incluir_amarillos'] ?? 1);
+        $incFinanciero  = $hasExplicit ? (!empty($_POST['incluir_financiero']) ? 1 : 0) : (int)($cfg['incluir_financiero'] ?? 1);
+        $incSugerencias = $hasExplicit ? (!empty($_POST['incluir_sugerencias']) ? 1 : 0) : (int)($cfg['incluir_sugerencias'] ?? 1);
+
+        // Auto-persistir los filtros en configuracion para recordar la preferencia
+        try {
+            $pdo->prepare("
+                UPDATE configuracion 
+                SET incluir_vencidos = ?, incluir_rojos = ?, incluir_amarillos = ?, incluir_financiero = ?, incluir_sugerencias = ? 
+                WHERE id = 1
+            ")->execute([$incVencidos, $incRojos, $incAmarillos, $incFinanciero, $incSugerencias]);
+        } catch (Exception $e) {}
+
         $filtrosConfig = [
             'frecuencia_reporte'  => $_POST['frecuencia_reporte'] ?? ($cfg['frecuencia_reporte'] ?? 'DIARIO'),
             'hora_reporte'        => $_POST['hora_reporte'] ?? ($cfg['hora_reporte'] ?? '08:00'),
             'email_destino'       => $emailDestino,
             'emails_copia'        => $emailsCopia,
-            'incluir_vencidos'    => isset($_POST['incluir_vencidos']) ? (int)$_POST['incluir_vencidos'] : (int)($cfg['incluir_vencidos'] ?? 1),
-            'incluir_rojos'       => isset($_POST['incluir_rojos']) ? (int)$_POST['incluir_rojos'] : (int)($cfg['incluir_rojos'] ?? 1),
-            'incluir_amarillos'   => isset($_POST['incluir_amarillos']) ? (int)$_POST['incluir_amarillos'] : (int)($cfg['incluir_amarillos'] ?? 1),
-            'incluir_financiero'  => isset($_POST['incluir_financiero']) ? (int)$_POST['incluir_financiero'] : (int)($cfg['incluir_financiero'] ?? 1),
-            'incluir_sugerencias' => isset($_POST['incluir_sugerencias']) ? (int)$_POST['incluir_sugerencias'] : (int)($cfg['incluir_sugerencias'] ?? 1)
+            'incluir_vencidos'    => $incVencidos,
+            'incluir_rojos'       => $incRojos,
+            'incluir_amarillos'   => $incAmarillos,
+            'incluir_financiero'  => $incFinanciero,
+            'incluir_sugerencias' => $incSugerencias,
+            'remitente_nombre'    => $remitenteNombre,
+            'remitente_cargo'     => $remitenteCargo
         ];
 
         $htmlBody = ResendEmailService::buildExpirationAlertHtml(
@@ -659,8 +735,21 @@ switch ($action) {
             $filtrosConfig
         );
 
-        $totalItems = count($lotesRojos);
-        $subject = "⚠️ [Alerta Semáforo] {$totalItems} productos críticos en zona de riesgo — {$nombreNegocio}";
+        // Asunto dinámico y contextual según lo que se seleccionó mandar
+        if ($incFinanciero && !$incVencidos && !$incRojos && !$incAmarillos && !$incSugerencias) {
+            $subject = "💰 [Balance Financiero] Capital en Riesgo & Mermas — {$nombreNegocio}";
+        } elseif ($incVencidos && !$incRojos && !$incAmarillos && !$incFinanciero && !$incSugerencias) {
+            $subject = "🏴 [Alerta Sanitaria] " . count($lotesRojos) . " productos vencidos para retiro — {$nombreNegocio}";
+        } elseif ($incRojos && !$incVencidos && !$incAmarillos && !$incFinanciero && !$incSugerencias) {
+            $subject = "🔴 [Semáforo Rojo] " . count($lotesRojos) . " productos críticos por vencer — {$nombreNegocio}";
+        } elseif ($incAmarillos && !$incVencidos && !$incRojos && !$incFinanciero && !$incSugerencias) {
+            $subject = "🟡 [Alerta Preventiva] " . count($lotesAmarillos) . " productos en rotación FIFO — {$nombreNegocio}";
+        } elseif ($incSugerencias && !$incVencidos && !$incRojos && !$incAmarillos && !$incFinanciero) {
+            $subject = "💡 [Plan de Acción] Recomendaciones Comerciales — {$nombreNegocio}";
+        } else {
+            $totalItems = ($incRojos || $incVencidos ? count($lotesRojos) : 0) + ($incAmarillos ? count($lotesAmarillos) : 0);
+            $subject = "⚠️ [Alerta Semáforo] {$totalItems} productos en reporte — {$nombreNegocio}";
+        }
 
         $resultado = ResendEmailService::sendEmail($emailDestino, $subject, $htmlBody, $emailsCopia);
 
